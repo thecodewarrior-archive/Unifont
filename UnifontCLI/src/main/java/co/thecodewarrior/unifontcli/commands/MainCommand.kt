@@ -5,7 +5,7 @@ import com.github.ajalt.clikt.core.subcommands
 
 class MainCommand: CliktCommand() {
     init {
-        this.subcommands(UpdateBlocksCommand())
+        this.subcommands(ReloadUCD())
     }
 
     override fun run() {

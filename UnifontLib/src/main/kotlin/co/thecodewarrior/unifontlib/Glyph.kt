@@ -1,16 +1,12 @@
 package co.thecodewarrior.unifontlib
 
-import co.thecodewarrior.unifontlib.utils.IndexColorModel
-import co.thecodewarrior.unifontlib.utils.Tokenizer
-import co.thecodewarrior.unifontlib.utils.codepointHex
-import co.thecodewarrior.unifontlib.utils.isColor
+import co.thecodewarrior.unifontlib.utils.*
 import java.awt.Color
 import java.awt.image.BufferedImage
 import kotlin.math.floor
 
 class Glyph(val codepoint: Int, var image: BufferedImage,
-            var attributes: MutableMap<GlyphAttribute, MutableList<String>>, var tags: MutableMap<GlyphTag, Int>,
-            var name: String?) {
+            var attributes: MutableMap<GlyphAttribute, MutableList<String>>, var tags: MutableMap<GlyphTag, Int>) {
 
     val width: Int
         get() = image.width
@@ -44,33 +40,35 @@ class Glyph(val codepoint: Int, var image: BufferedImage,
             "${'$'}${it.key.name}".repeat(it.value)
         }.sorted().joinToString(" ")
 
-        return "${codepoint.codepointHex()}:$glyphHex $tagsString $attributesString * $name"
-                .replace("\\s+".toRegex(), " ")
+        return "${codepoint.codepointHex()}:$glyphHex; $tagsString $attributesString"
     }
 
     companion object {
         val COLOR_MODEL = IndexColorModel(Color(1f, 1f, 1f, 0f), Color.BLACK)
 
-        fun read(line: String): Glyph {
-            val tokenizer = Tokenizer(line)
-            // [codepoint]:[glyph] $[flag] $[attr]=[value] $[attr]=[value1],[value2] * [Glyph name]
+        val attrRegex = """(\w+)(?:\s*=\s*(?:([^"]\S*|".+?[^\\]")))?""".toRegex()
 
-            val codepoint = tokenizer.until(':').toInt(16)
-            val glyphHex = tokenizer.until("\\s".toRegex())
-            val metaString = tokenizer.untilOrRemaining("*")
-            val name = tokenizer.remaining()
+        fun read(line: String): Glyph {
+            val legacyGlyph = line.until(';')
+            val metaString = line.after(';')
+
+            val codepoint = legacyGlyph.until(':').toInt(16)
+            val glyphHex = legacyGlyph.after(':') ?: "0".repeat(16*8/4)
 
             val attributes = mutableMapOf<GlyphAttribute, MutableList<String>>()
             val flags = mutableMapOf<GlyphTag, Int>()
 
-            metaString.split("\\s+".toRegex()).forEach {
-                val parts = it.split('=', limit=2)
-                if(parts.size == 2) {
-                    val attribute = GlyphAttribute[parts[0].removePrefix("$")]
-                    attributes.getOrPut(attribute) { mutableListOf() }.add(parts[0])
-                } else {
-                    val tag = GlyphTag[parts[0].removePrefix("$")]
-                    flags[tag] = flags.getOrDefault(tag, 0)
+            if(metaString != null) {
+                attrRegex.findAll(metaString).forEach { match ->
+                    val name = match.groups[1]!!.value
+                    val value = match.groups[2]?.value
+                    if(value != null) {
+                        val attribute = GlyphAttribute[name]
+                        attributes.getOrPut(attribute) { mutableListOf() }.add(value)
+                    } else {
+                        val tag = GlyphTag[name]
+                        flags[tag] = flags.getOrDefault(tag, 0)
+                    }
                 }
             }
 
@@ -78,9 +76,8 @@ class Glyph(val codepoint: Int, var image: BufferedImage,
                 throw IllegalArgumentException("Glyph string `$glyphHex` is not valid hex")
             val width = floor(glyphHex.length*4.0/16).toInt()
 
-
             val image = BufferedImage(glyphHex.length*4/16, 16, BufferedImage.TYPE_BYTE_INDEXED, COLOR_MODEL)
-            val glyph = Glyph(codepoint, image, attributes, flags, name)
+            val glyph = Glyph(codepoint, image, attributes, flags)
             val rows = glyphHex.chunked(glyphHex.length).map { it.toLong(16) }
 
             for (x in 0 until width) {
@@ -101,6 +98,7 @@ class GlyphAttribute private constructor(val name: String) {
         val BLANK_WIDTH = GlyphAttribute["blank_width"]
         val COMBINING = GlyphAttribute["combining"]
         val WIDTH_OVERRIDE = GlyphAttribute["width_override"]
+        val NAME = GlyphAttribute["name"]
 
         private val map = mutableMapOf<String, GlyphAttribute>()
         operator fun get(name: String): GlyphAttribute {
