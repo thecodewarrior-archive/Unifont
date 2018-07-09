@@ -25,7 +25,10 @@ class ReloadUCD: UnifontCommand(
     override fun run() {
         val ucd = UnicodeCharacterDatabase(Paths.get("UCD"))
 
-        unifont.blocks.forEach { it.load() }
+        unifont.blocks.forEach {
+            it.load()
+            it.markDirty()
+        }
         unifont.homeless.load()
         updateBlockData(ucd)
         updateGlyphData(ucd)
@@ -44,7 +47,6 @@ class ReloadUCD: UnifontCommand(
             } else {
                 if(file.blockRange != block.key) {
                     file.blockRange = block.key
-                    file.markDirty()
                 }
             }
         }

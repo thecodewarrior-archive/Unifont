@@ -71,7 +71,8 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16
             val metaString = line.after(';')
 
             val codepoint = legacyGlyph.until(':').toInt(16)
-            val glyphHex = legacyGlyph.after(':') ?: "0".repeat(16*8/4)
+            var glyphHex = legacyGlyph.after(':') ?: "0".repeat(16*8/4)
+            if(glyphHex.isEmpty()) "0".repeat(8*16/4)
 
             val attributes = mutableMapOf<GlyphAttribute, String>()
             val flags = mutableMapOf<GlyphTag, Int>()
