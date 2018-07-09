@@ -1,6 +1,8 @@
 package co.thecodewarrior.unifontcli.commands
 
 import co.thecodewarrior.unifontcli.utils.removeEscapedNewlines
+import co.thecodewarrior.unifontlib.Glyph
+import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.HexFile
 import co.thecodewarrior.unifontlib.IntRanges
 import co.thecodewarrior.unifontlib.ucd.UnicodeCharacterDatabase
@@ -23,6 +25,8 @@ class ReloadUCD: UnifontCommand(
     override fun run() {
         val ucd = UnicodeCharacterDatabase(Paths.get("UCD"))
 
+        unifont.blocks.forEach { it.load() }
+        unifont.homeless.load()
         updateBlockData(ucd)
         updateGlyphData(ucd)
 
@@ -48,12 +52,12 @@ class ReloadUCD: UnifontCommand(
 
     private fun updateGlyphData(ucd: UnicodeCharacterDatabase) {
         unifont.blocks.forEach { file ->
-            val codepoints = ucd.codepoints.subMap(file.blockRange.start, true, file.blockRange.endInclusive, true).keys
-            val codepointRanges = IntRanges()
-            codepointRanges.add(file.blockRange)
-            codepointRanges.removeAll(codepoints.getContinuousRanges())
-            file.missing.clear()
-            file.missing.addAll(codepointRanges.ranges.map { it.start..it.endInclusive }) // map from ClosedRange to IntRange
+            val codepoints = ucd.codepoints.subMap(file.blockRange.start, true, file.blockRange.endInclusive, true).values
+            codepoints.forEach { codepoint ->
+                file.glyphs.getOrPut(codepoint.codepoint) {
+                    Glyph(codepoint.codepoint, missing = true)
+                }.attributes[GlyphAttribute.NAME] = codepoint.name
+            }
         }
     }
 

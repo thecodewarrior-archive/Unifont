@@ -12,8 +12,7 @@ New, spread across various files, one for each unicode block (Latin, Alchemical 
 ; Unassigned: [start]..[end]
 ; Unassigned: [codepoint]
 ...
-; Missing Glyph: [start]..[end]
-; Missing Glyph: [codepoint]
+; Missing Glyph: [codepoint]:; [flag] [attr]=[value] [attr]="[value]"
 ...
 ```
 

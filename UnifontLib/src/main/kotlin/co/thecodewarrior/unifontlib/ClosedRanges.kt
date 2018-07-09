@@ -53,7 +53,7 @@ open class ClosedRanges<T: Comparable<T>>(
                 rangeSet.add(start..decrement(range.start))
             }
             if(end > range.endInclusive) {
-                rangeSet.add(increment(range.endInclusive)..start)
+                rangeSet.add(increment(range.endInclusive)..end)
             }
         }
     }

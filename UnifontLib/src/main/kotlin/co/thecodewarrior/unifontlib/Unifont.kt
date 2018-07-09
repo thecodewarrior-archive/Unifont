@@ -32,17 +32,18 @@ class Unifont(val path: Path) {
     fun load() {
         clear()
         Files.list(blockHexDir).asSequence().forEach {
+            if(!it.toString().endsWith(".hex")) return@forEach
             val hex = HexFile(it)
             hex.loadHeader()
             blocks.add(hex)
         }
-        homeless.loadHeader()
     }
 
     fun save() {
         if(!Files.exists(blockHexDir)) Files.createDirectory(blockHexDir)
         redistributeGlyphs()
         blocks.filter { it.isDirty }.forEach { it.save() }
+        if(homeless.isDirty) homeless.save(noheader = true)
     }
 
     fun redistributeGlyphs() {

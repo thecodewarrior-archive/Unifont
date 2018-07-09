@@ -2,6 +2,7 @@ package co.thecodewarrior.unifontlib
 
 import co.thecodewarrior.unifontlib.utils.codepointRange
 import co.thecodewarrior.unifontlib.utils.getContinuousRanges
+import co.thecodewarrior.unifontlib.utils.toIntRange
 import co.thecodewarrior.unifontlib.utils.until
 import java.io.OutputStreamWriter
 import java.nio.file.Files
@@ -9,89 +10,90 @@ import java.nio.file.Path
 import java.util.*
 import kotlin.streams.asSequence
 
-class HexFile(val path: Path, val legacy: Boolean = false) {
+class HexFile(val path: Path) {
     var isDirty = false
         private set
     val glyphs = TreeMap<Int, Glyph>()
-    val missing = TreeSet<IntRange>(Comparator { a, b -> a.start.compareTo(b.start) })
-    var blockName: String = ""
-    var blockRange: IntRange = IntRange.EMPTY
+    var blockName: String = "NO_NAME"
+    var blockRange: IntRange = Int.MAX_VALUE..Int.MAX_VALUE
 
     fun loadHeader() {
-        if(legacy) {
-            blockName = "Legacy"
-            blockRange = IntRange.EMPTY
-            return
+        try {
+            if (!Files.exists(path)) return
+            val lines = Files.lines(path).limit(2).asSequence().toList()
+            if (lines.size < 2)
+                return
+            val nameLine = lines[0]
+            val rangeLine = lines[1]
+
+            if (nameLine == null || rangeLine == null ||
+                    !nameLine.startsWith("; Block: ") || !rangeLine.startsWith("; Range: "))
+                return
+
+            blockName = nameLine.removePrefix("; Block: ")
+            blockRange = rangeLine.removePrefix("; Range: ").codepointRange()
+        } catch (e: Exception) {
+            throw HexException("Error loading header for $path", e)
         }
-
-        val lines = Files.lines(path).limit(2).asSequence().toList()
-        if(lines.size < 2)
-            throw InvalidHexException("File has fewer than two lines, valid headers are two lines long.")
-        val nameLine = lines[0]
-        val rangeLine = lines[1]
-
-        if(nameLine == null || rangeLine == null ||
-                nameLine.startsWith("; Block: ") || rangeLine.startsWith("; Range: "))
-            throw IllegalArgumentException("File does not contain a valid header. One of the first two lines " +
-                    "starts with a character other than `;`")
-
-        blockName = nameLine.removePrefix("; Block: ")
-        blockRange = rangeLine.removePrefix("; Range: ").codepointRange()
     }
 
     fun load() {
-        missing.clear()
-        Files.lines(path).asSequence().forEach {
-            val line = it.trim()
-            if(line.isEmpty()) return@forEach
+        try {
+            if(!Files.exists(path)) return
+            Files.lines(path).asSequence().forEach {
+                val line = it.trim()
+                if(line.isEmpty()) return@forEach
 
-            when {
-                line.startsWith("; Block: ") -> {}
-                line.startsWith("; Range: ") -> {}
-                line.startsWith("; Missing: ") -> missing.add(line.removePrefix("; Missing: ").codepointRange())
-                line.startsWith("; Unassigned: ") -> {}
-                else -> {
-                    val glyph = Glyph.read(line)
-                    glyphs[glyph.codepoint] = glyph
+                when {
+                    line.startsWith("; Block: ") -> {}
+                    line.startsWith("; Range: ") -> {}
+                    line.startsWith("; Unassigned: ") -> {}
+                    else -> {
+                        val glyph = Glyph.read(line)
+                        glyphs[glyph.codepoint] = glyph
+                    }
                 }
             }
+        } catch (e: Exception) {
+            throw HexException("Error loading glyphs for $path", e)
         }
     }
 
-    fun save() {
-        OutputStreamWriter(Files.newOutputStream(path)).use { output ->
-            output.write("; Block: $blockName\n")
-            output.write("; Range: ${blockRange.codepointRange()}\n")
+    fun save(legacy: Boolean = false, noheader: Boolean = false) {
+        try {
+            OutputStreamWriter(Files.newOutputStream(path)).use { output ->
+                if(!noheader) {
+                    output.write("; Block: $blockName\n")
+                    output.write("; Range: ${blockRange.codepointRange()}\n")
+                }
 
-            val lines = TreeMap<Int, String>(glyphs.mapValues { it.value.write() })
-            lines[Int.MIN_VALUE] = ""
+                val lines = TreeMap<Int, String>(glyphs.mapValues { it.value.write() })
+                lines[Int.MIN_VALUE] = ""
 
-            val unassigned = IntRanges()
-            unassigned.add(blockRange)
-            unassigned.removeAll(missing)
-            unassigned.removeAll(glyphs.keys.getContinuousRanges())
+                val unassigned = IntRanges()
+                unassigned.add(blockRange)
+                unassigned.removeAll(glyphs.keys.getContinuousRanges())
 
-            val ranges = mutableListOf<Pair<IntRange, String>>()
-            ranges.addAll(missing.asSequence().map {
-                it to "; Missing: ${it.codepointRange()}"
-            })
-            val sortedRanges = ranges.sortedBy { it.first.start }
+                unassigned.ranges.forEach {
+                    val range = it.toIntRange()
+                    val line = "; Unassigned: ${range.codepointRange()}"
+                    val before = lines.floorKey(range.start) ?: return@forEach
+                    lines[before] = "${lines[before]}\n$line"
+                }
 
-            sortedRanges.forEach { (range, line) ->
-                val before = lines.floorKey(range.start) ?: return@forEach
-                lines[before] = "${lines[before]}\n$line"
-            }
-
-            lines.forEach { (_, line) ->
-                if(legacy) {
-                    val legacyLine = line.until(';')
-                    if (legacyLine.isNotBlank())
-                        output.write(legacyLine)
-                } else {
-                    if (line.isNotBlank())
-                        output.write(line.removePrefix("\n"))
+                lines.forEach { (_, line) ->
+                    if(legacy) {
+                        val legacyLine = line.until(';')
+                        if (legacyLine.isNotBlank())
+                            output.write(legacyLine + "\n")
+                    } else {
+                        if (line.isNotBlank())
+                            output.write(line.removePrefix("\n") + "\n")
+                    }
                 }
             }
+        } catch (e: Exception) {
+            throw HexException("Error saving glyphs for $path", e)
         }
     }
 
@@ -100,7 +102,7 @@ class HexFile(val path: Path, val legacy: Boolean = false) {
     }
 }
 
-class InvalidHexException(message: String?, cause: Throwable?, enableSuppression: Boolean, writableStackTrace: Boolean):
+class HexException(message: String?, cause: Throwable?, enableSuppression: Boolean, writableStackTrace: Boolean):
         RuntimeException(message, cause, enableSuppression, writableStackTrace) {
     constructor(): this(null, null, true, true)
     constructor(message: String): this(message, null, true, true)
