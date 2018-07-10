@@ -9,46 +9,50 @@ class Unifont(val path: Path) {
     private val blockHexDir = path.resolve("blocks")
     private val homelessHexFile = path.resolve("homeless.hex")
 
-    val blocks = mutableListOf<HexFile>()
+    val files = mutableListOf<HexFile>()
     var homeless = HexFile(homelessHexFile); private set
-
 
     fun createBlock(name: String): HexFile {
         val newFile = HexFile(blockHexDir.resolve("$name.hex"))
         newFile.markDirty()
-        blocks.add(newFile)
+        files.add(newFile)
         return newFile
     }
 
     fun findBlockFile(name: String): HexFile? {
-        return blocks.find { it.blockName == name }
+        return files.find { it.blockName == name }
     }
 
     fun clear() {
-        blocks.clear()
+        files.clear()
         homeless = HexFile(homelessHexFile)
     }
 
-    fun load() {
+    fun loadHeaders() {
         clear()
         Files.list(blockHexDir).asSequence().forEach {
             if(!it.toString().endsWith(".hex")) return@forEach
             val hex = HexFile(it)
             hex.loadHeader()
-            blocks.add(hex)
+            files.add(hex)
         }
+    }
+
+    fun loadBlocks() {
+        files.forEach(HexFile::load)
+        homeless.load()
     }
 
     fun save() {
         if(!Files.exists(blockHexDir)) Files.createDirectory(blockHexDir)
         redistributeGlyphs()
-        blocks.filter { it.isDirty }.forEach { it.save() }
+        files.filter { it.isDirty }.forEach { it.save() }
         if(homeless.isDirty) homeless.save(noheader = true)
     }
 
     fun redistributeGlyphs() {
-        blocks.forEach { removeOrphanedGlyphs(it) }
-        blocks.forEach { relocateHomelessGlyphs(it) }
+        files.forEach { removeOrphanedGlyphs(it) }
+        files.forEach { relocateHomelessGlyphs(it) }
     }
 
     private fun removeOrphanedGlyphs(file: HexFile) {

@@ -12,6 +12,6 @@ abstract class UnifontCommand(
 ): CliktCommand(help, epilog, name, invokeWithoutSubcommand) {
     protected val unifont = Unifont(Paths.get("."))
     init {
-        unifont.load()
+        unifont.loadHeaders()
     }
 }

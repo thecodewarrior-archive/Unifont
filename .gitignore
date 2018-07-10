@@ -115,3 +115,7 @@ gradle-app.setting
 
 
 # End of https://www.gitignore.io/api/macos,gradle,intellij+all
+
+
+/UnifontCLI/build/
+/UnifontLib/build/

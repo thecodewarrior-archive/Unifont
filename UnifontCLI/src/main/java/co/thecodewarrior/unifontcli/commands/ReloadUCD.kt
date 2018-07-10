@@ -3,13 +3,7 @@ package co.thecodewarrior.unifontcli.commands
 import co.thecodewarrior.unifontcli.utils.removeEscapedNewlines
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.GlyphAttribute
-import co.thecodewarrior.unifontlib.HexFile
-import co.thecodewarrior.unifontlib.IntRanges
 import co.thecodewarrior.unifontlib.ucd.UnicodeCharacterDatabase
-import co.thecodewarrior.unifontlib.utils.getContinuousRanges
-import com.github.ajalt.clikt.parameters.arguments.argument
-import com.github.ajalt.clikt.parameters.arguments.multiple
-import java.nio.file.Path
 import java.nio.file.Paths
 
 class ReloadUCD: UnifontCommand(
@@ -25,7 +19,7 @@ class ReloadUCD: UnifontCommand(
     override fun run() {
         val ucd = UnicodeCharacterDatabase(Paths.get("UCD"))
 
-        unifont.blocks.forEach {
+        unifont.files.forEach {
             it.load()
             it.markDirty()
         }
@@ -53,7 +47,7 @@ class ReloadUCD: UnifontCommand(
     }
 
     private fun updateGlyphData(ucd: UnicodeCharacterDatabase) {
-        unifont.blocks.forEach { file ->
+        unifont.files.forEach { file ->
             val codepoints = ucd.codepoints.subMap(file.blockRange.start, true, file.blockRange.endInclusive, true).values
             codepoints.forEach { codepoint ->
                 file.glyphs.getOrPut(codepoint.codepoint) {

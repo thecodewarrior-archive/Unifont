@@ -125,6 +125,13 @@ fun Collection<Int>.getContinuousRanges(): List<IntRange> {
 fun ClosedRange<Int>.toIntRange() = this.start..this.endInclusive
 fun ClosedRange<Long>.toLongRange() = this.start..this.endInclusive
 
+fun <T: Comparable<T>> ClosedRange<T>.overlaps(other: ClosedRange<T>): Boolean {
+    if(this.contains(other.start) || this.contains(other.endInclusive) ||
+            other.contains(this.start) || other.contains(this.endInclusive))
+        return true
+    return false
+}
+
 //==================================================== Random crap =====================================================
 
 fun String.hexToBitSet(): BitSet {

@@ -7,6 +7,7 @@ dependencies {
     compile(project(":UnifontLib"))
     compile("com.github.ajalt", "clikt", "1.2.0")
     compile("commons-net", "commons-net", "3.6")
+    compile("me.tongfei", "progressbar", "0.7.0")
 }
 
 
@@ -15,7 +16,7 @@ plugins {
 }
 
 application {
-    mainClassName = "co.thecodewarrior.unifoncli.MainKt"
+    mainClassName = "co.thecodewarrior.unifontcli.MainKt"
 }
 
 val fatJar = task("fatJar", type = Jar::class) {
@@ -49,6 +50,16 @@ configure<JavaPluginConvention> {
 }
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "1.8"
+}
+val runArgs: Any? by project
+tasks.withType<JavaExec> {
+    val runningDir = File("run/")
+    runningDir.mkdirs()
+    workingDir = runningDir
+    val runArgs = runArgs
+    if(runArgs is String && runArgs.isNotEmpty()) {
+        args = runArgs.split("\uE000")
+    }
 }
 
 tasks["build"].dependsOn(createExecutable)
