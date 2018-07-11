@@ -23,6 +23,22 @@ class Unifont(val path: Path) {
         return files.find { it.blockName == name }
     }
 
+    fun fileForCodepoint(codepoint: Int): HexFile {
+        return files.find { it.blockRange.contains(codepoint) } ?: homeless
+    }
+
+    operator fun get(codepoint: Int): Glyph? {
+        return fileForCodepoint(codepoint).glyphs[codepoint]
+    }
+
+    operator fun set(codepoint: Int, glyph: Glyph?) {
+        if(glyph == null) {
+            fileForCodepoint(codepoint).glyphs.remove(codepoint)
+        } else {
+            fileForCodepoint(codepoint).glyphs[codepoint] = glyph
+        }
+    }
+
     fun clear() {
         files.clear()
         homeless = HexFile(homelessHexFile)

@@ -13,7 +13,14 @@ import kotlin.streams.asSequence
 class HexFile(val path: Path) {
     var isDirty = false
         private set
-    val glyphs = TreeMap<Int, Glyph>()
+    var loaded = false
+        private set
+    private val _glyphs = TreeMap<Int, Glyph>()
+    val glyphs: TreeMap<Int, Glyph>
+        get() {
+            if(!loaded) load()
+            return _glyphs
+        }
     var blockName: String = "NO_NAME"
     var blockRange: IntRange = Int.MAX_VALUE..Int.MAX_VALUE
 
@@ -50,7 +57,7 @@ class HexFile(val path: Path) {
                     line.startsWith("; Unassigned: ") -> {}
                     else -> {
                         val glyph = Glyph.read(line)
-                        glyphs[glyph.codepoint] = glyph
+                        _glyphs[glyph.codepoint] = glyph
                     }
                 }
             }
@@ -67,12 +74,12 @@ class HexFile(val path: Path) {
                     output.write("; Range: ${blockRange.codepointRange()}\n")
                 }
 
-                val lines = TreeMap<Int, String>(glyphs.mapValues { it.value.write() })
+                val lines = TreeMap<Int, String>(_glyphs.mapValues { it.value.write() })
                 lines[Int.MIN_VALUE] = ""
 
                 val unassigned = IntRanges()
                 unassigned.add(blockRange)
-                unassigned.removeAll(glyphs.keys.getContinuousRanges())
+                unassigned.removeAll(_glyphs.keys.getContinuousRanges())
 
                 unassigned.ranges.forEach {
                     val range = it.toIntRange()

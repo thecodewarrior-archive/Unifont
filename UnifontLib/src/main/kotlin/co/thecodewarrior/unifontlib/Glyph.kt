@@ -80,8 +80,11 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16
             if(metaString != null) {
                 attrRegex.findAll(metaString).forEach { match ->
                     val name = match.groups[1]!!.value
-                    val value = match.groups[2]?.value
+                    var value = match.groups[2]?.value
                     if(value != null) {
+                        if(value.startsWith("\"") && value.endsWith("\"")) {
+                            value = value.substring(1, value.length-1)
+                        }
                         val attribute = GlyphAttribute[name]
                         attributes[attribute] = value
                     } else {

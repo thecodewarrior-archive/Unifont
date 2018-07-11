@@ -19,11 +19,6 @@ import java.awt.image.IndexColorModel
 import java.io.File
 import javax.imageio.ImageIO
 
-private object Guides {
-    val gridStart = vec(75, 32)
-    val gridSize = vec(34, 34)
-}
-
 class ExportGuides: Exporter(name="guides") {
     val prefix by option("-p", "--prefix", help = "The codepoint prefix in hex. The output image will contain all the " +
             "codepoints from U+xxxx00 to U+xxxxFF.").hex().default(0)
