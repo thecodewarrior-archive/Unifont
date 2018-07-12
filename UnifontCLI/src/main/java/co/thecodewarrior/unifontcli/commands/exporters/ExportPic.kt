@@ -2,6 +2,7 @@ package co.thecodewarrior.unifontcli.commands.exporters
 
 import co.thecodewarrior.unifontcli.commands.importers.Importer
 import co.thecodewarrior.unifontcli.common.Text
+import co.thecodewarrior.unifontcli.utils.loadWithProgress
 import co.thecodewarrior.unifontlib.HexFile
 import com.github.ajalt.clikt.parameters.options.option
 import me.tongfei.progressbar.ProgressBar
@@ -18,7 +19,7 @@ class ExportPic: Exporter(
     val imageSize = 16*256 + border
 
     override fun run() {
-        unifont.loadBlocks()
+        unifont.all.loadWithProgress()
 
         val image = BufferedImage(imageSize, imageSize, BufferedImage.TYPE_BYTE_BINARY)
         val g = image.graphics
@@ -80,9 +81,5 @@ class ExportPic: Exporter(
                 g.drawLine(x, y+15, x+14, y+15)
         }
 
-    }
-
-    private fun addGlyphs(g: Graphics, file: HexFile) {
-        println()
     }
 }

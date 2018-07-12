@@ -3,12 +3,17 @@ package co.thecodewarrior.unifontlib
 import co.thecodewarrior.unifontlib.utils.*
 import java.awt.Color
 import java.awt.image.BufferedImage
+import java.awt.image.DataBuffer
+import java.awt.image.DataBufferByte
+import java.awt.image.Raster
 import java.util.*
 import kotlin.math.floor
 
 class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16), var missing: Boolean = false,
             var attributes: MutableMap<GlyphAttribute, String> = mutableMapOf(),
             var tags: MutableMap<GlyphTag, Int> = mutableMapOf()) {
+
+
 
     val width: Int
         get() = image.width
@@ -25,15 +30,8 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16
         if(missing) {
             glyphHex = "0".repeat(8*16/4)
         } else {
-            val bitset = BitSet(width*height)
-
-            for (y in 0 until height) {
-                for (x in 0 until width) {
-                    bitset[y*width + x] = image.isColor(x, y, Color.BLACK)
-                }
-            }
-
-            glyphHex = bitset.toHex()
+            val data = (image.raster.dataBuffer as DataBufferByte).data
+            glyphHex = data.joinToString("") { "%02X".format(it) }
         }
 
         val attributesString = attributes.map {
@@ -100,18 +98,15 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16
 
             val image = createGlyphImage(glyphHex.length*4/16, 16)
             val glyph = Glyph(codepoint, image, missing, attributes, flags)
-            val bitset = glyphHex.hexToBitSet()
 
-            for (x in 0 until width) {
-                for (y in 0 until 16) {
-                    glyph.image.setRGB(x, y, if(bitset[y*width + x]) Color.BLACK.rgb else Color(1f, 1f, 1f, 0f).rgb)
-                }
-            }
+            val data = (image.raster.dataBuffer as DataBufferByte).data
+            val bytes = glyphHex.chunked(2).map { it.toInt(16).toByte() }.toTypedArray().toByteArray()
+            System.arraycopy(bytes, 0, data, 0, bytes.size)
 
             return glyph
         }
 
-        fun createGlyphImage(width: Int, height: Int) = BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, COLOR_MODEL)
+        fun createGlyphImage(width: Int, height: Int, bitSet: BitSet? = null) = BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, COLOR_MODEL)
     }
 }
 

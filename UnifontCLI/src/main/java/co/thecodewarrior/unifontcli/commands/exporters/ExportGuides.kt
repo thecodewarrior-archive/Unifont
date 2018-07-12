@@ -4,6 +4,7 @@ import co.thecodewarrior.unifontcli.common.*
 import co.thecodewarrior.unifontcli.utils.IndexColorModel
 import co.thecodewarrior.unifontcli.utils.drawPixel
 import co.thecodewarrior.unifontcli.utils.hex
+import co.thecodewarrior.unifontcli.utils.loadWithProgress
 import co.thecodewarrior.unifontlib.HexFile
 import co.thecodewarrior.unifontlib.utils.overlaps
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -41,10 +42,9 @@ class ExportGuides: Exporter(name="guides") {
         drawMetadata(g)
         drawAxes(g)
         drawGuides(g)
-        unifont.files.filter {
-            it.blockRange.overlaps(codepointRange)
-        }.forEach {
-            it.load()
+        val neededFiles = unifont.filesForCodepoints(codepointRange)
+        neededFiles.loadWithProgress()
+        neededFiles.forEach {
             drawGlyphs(g, it)
         }
 

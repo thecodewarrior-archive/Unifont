@@ -132,7 +132,7 @@ fun <T: Comparable<T>> ClosedRange<T>.overlaps(other: ClosedRange<T>): Boolean {
     return false
 }
 
-//==================================================== Random crap =====================================================
+//======================================================= BitSet =======================================================
 
 fun String.hexToBitSet(): BitSet {
     val bitset = BitSet(this.length*4)
@@ -160,3 +160,26 @@ fun BitSet.toHex(): String {
     }
     return str
 }
+
+fun String.binaryToBitSet(): BitSet {
+    val bitset = BitSet(this.length)
+    this.forEachIndexed { i, c ->
+        when(c) {
+            '0' -> bitset[i] = false
+            '1' -> bitset[i] = true
+            else -> throw IllegalArgumentException("$this is not a valid binary string")
+        }
+    }
+    return bitset
+}
+
+fun BitSet.toBinary(): String {
+    var str = ""
+    (0 until this.size()).forEach { i ->
+        str += if(this[i]) '1' else '0'
+    }
+    return str
+}
+
+//==================================================== Random crap =====================================================
+

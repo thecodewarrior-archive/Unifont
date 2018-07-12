@@ -1,5 +1,6 @@
 package co.thecodewarrior.unifontcli.commands
 
+import co.thecodewarrior.unifontcli.utils.loadWithProgress
 import co.thecodewarrior.unifontcli.utils.removeEscapedNewlines
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.GlyphAttribute
@@ -19,11 +20,8 @@ class ReloadUCD: UnifontCommand(
     override fun run() {
         val ucd = UnicodeCharacterDatabase(Paths.get("UCD"))
 
-        unifont.files.forEach {
-            it.load()
-            it.markDirty()
-        }
-        unifont.homeless.load()
+        unifont.all.loadWithProgress()
+        unifont.all.forEach { it.markDirty() }
         updateBlockData(ucd)
         updateGlyphData(ucd)
 

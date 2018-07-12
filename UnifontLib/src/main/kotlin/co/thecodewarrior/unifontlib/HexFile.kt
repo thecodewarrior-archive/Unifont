@@ -23,6 +23,7 @@ class HexFile(val path: Path) {
         }
     var blockName: String = "NO_NAME"
     var blockRange: IntRange = Int.MAX_VALUE..Int.MAX_VALUE
+    var estimatedCount: Int = 0
 
     fun loadHeader() {
         try {
@@ -38,15 +39,21 @@ class HexFile(val path: Path) {
                 return
 
             blockName = nameLine.removePrefix("; Block: ")
-            blockRange = rangeLine.removePrefix("; Range: ").codepointRange()
+            val rangeMatch = """([\da-zA-Z]+\.\.[\da-zA-Z]+)(?:\s+\((\d+)\))?""".toRegex()
+                    .matchEntire(rangeLine.removePrefix("; Range: "))
+                    ?: throw HexException("Illegal range line: `$rangeLine`")
+            blockRange = rangeMatch.groupValues[1].codepointRange()
+            estimatedCount = rangeMatch.groupValues[2].toIntOrNull() ?: 0
         } catch (e: Exception) {
             throw HexException("Error loading header for $path", e)
         }
     }
 
-    fun load() {
+    fun load(loadHandler: HexLoadHandler? = null) {
         try {
+            loaded = true
             if(!Files.exists(path)) return
+            var i = 0
             Files.lines(path).asSequence().forEach {
                 val line = it.trim()
                 if(line.isEmpty()) return@forEach
@@ -58,6 +65,11 @@ class HexFile(val path: Path) {
                     else -> {
                         val glyph = Glyph.read(line)
                         _glyphs[glyph.codepoint] = glyph
+                        i++
+                        if(i >= 64) {
+                            loadHandler?.readGlyphs(i)
+                            i = 0
+                        }
                     }
                 }
             }
@@ -66,15 +78,25 @@ class HexFile(val path: Path) {
         }
     }
 
-    fun save(legacy: Boolean = false, noheader: Boolean = false) {
+    fun save(legacy: Boolean = false, noheader: Boolean = false, saveHandler: HexSaveHandler? = null) {
         try {
             OutputStreamWriter(Files.newOutputStream(path)).use { output ->
+                estimatedCount = _glyphs.size
                 if(!noheader) {
                     output.write("; Block: $blockName\n")
-                    output.write("; Range: ${blockRange.codepointRange()}\n")
+                    output.write("; Range: ${blockRange.codepointRange()} ($estimatedCount)\n")
                 }
 
-                val lines = TreeMap<Int, String>(_glyphs.mapValues { it.value.write() })
+                var i = 0
+                val lines = TreeMap<Int, String>(_glyphs.mapValues {
+                    val g = it.value.write()
+                    i++
+                    if(i >= 64) {
+                        saveHandler?.serializeGlyphs(i)
+                        i = 0
+                    }
+                    g
+                })
                 lines[Int.MIN_VALUE] = ""
 
                 val unassigned = IntRanges()
@@ -88,6 +110,7 @@ class HexFile(val path: Path) {
                     lines[before] = "${lines[before]}\n$line"
                 }
 
+                i = 0
                 lines.forEach { (_, line) ->
                     if(legacy) {
                         val legacyLine = line.until(';')
@@ -96,6 +119,12 @@ class HexFile(val path: Path) {
                     } else {
                         if (line.isNotBlank())
                             output.write(line.removePrefix("\n") + "\n")
+                    }
+
+                    i++
+                    if(i >= 64) {
+                        saveHandler?.writeGlyphs(i)
+                        i = 0
                     }
                 }
             }
@@ -107,6 +136,15 @@ class HexFile(val path: Path) {
     fun markDirty() {
         isDirty = true
     }
+}
+
+interface HexLoadHandler {
+    fun readGlyphs(count: Int)
+}
+
+interface HexSaveHandler {
+    fun serializeGlyphs(count: Int)
+    fun writeGlyphs(count: Int)
 }
 
 class HexException(message: String?, cause: Throwable?, enableSuppression: Boolean, writableStackTrace: Boolean):

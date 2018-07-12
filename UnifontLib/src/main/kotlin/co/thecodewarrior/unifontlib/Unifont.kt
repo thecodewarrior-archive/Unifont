@@ -1,6 +1,7 @@
 package co.thecodewarrior.unifontlib
 
 import co.thecodewarrior.unifontlib.utils.getContinuousRanges
+import co.thecodewarrior.unifontlib.utils.overlaps
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.streams.asSequence
@@ -11,6 +12,8 @@ class Unifont(val path: Path) {
 
     val files = mutableListOf<HexFile>()
     var homeless = HexFile(homelessHexFile); private set
+    val all: List<HexFile>
+        get() = (files + listOf(homeless))
 
     fun createBlock(name: String): HexFile {
         val newFile = HexFile(blockHexDir.resolve("$name.hex"))
@@ -25,6 +28,10 @@ class Unifont(val path: Path) {
 
     fun fileForCodepoint(codepoint: Int): HexFile {
         return files.find { it.blockRange.contains(codepoint) } ?: homeless
+    }
+
+    fun filesForCodepoints(range: IntRange): List<HexFile> {
+        return files.filter { it.blockRange.overlaps(range) } + listOf(homeless)
     }
 
     operator fun get(codepoint: Int): Glyph? {
@@ -46,17 +53,13 @@ class Unifont(val path: Path) {
 
     fun loadHeaders() {
         clear()
+        if(!Files.exists(blockHexDir)) Files.createDirectory(blockHexDir)
         Files.list(blockHexDir).asSequence().forEach {
             if(!it.toString().endsWith(".hex")) return@forEach
             val hex = HexFile(it)
             hex.loadHeader()
             files.add(hex)
         }
-    }
-
-    fun loadBlocks() {
-        files.forEach(HexFile::load)
-        homeless.load()
     }
 
     fun save() {

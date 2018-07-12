@@ -17,6 +17,9 @@ plugins {
 
 application {
     mainClassName = "co.thecodewarrior.unifontcli.MainKt"
+    applicationDefaultJvmArgs = listOf(
+            "-Djava.awt.headless=true"
+    )
 }
 
 val fatJar = task("fatJar", type = Jar::class) {
