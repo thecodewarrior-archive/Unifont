@@ -23,6 +23,7 @@ class ReloadUCD: UnifontCommand(
         unifont.all.loadWithProgress()
         unifont.all.forEach { it.markDirty() }
         updateBlockData(ucd)
+        unifont.redistributeGlyphs()
         updateGlyphData(ucd)
 
         unifont.save()
