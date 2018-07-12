@@ -33,7 +33,7 @@ subprojects {
 
     val kotlin_version: String by root.extra
 
-    version = "1.0-SNAPSHOT"
+    version = "0.0.1-SNAPSHOT"
 
     repositories {
         mavenCentral()

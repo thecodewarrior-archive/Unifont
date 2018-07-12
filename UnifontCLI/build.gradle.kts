@@ -26,8 +26,10 @@ val fatJar = task("fatJar", type = Jar::class) {
     baseName="${project.name}-fat"
     manifest {
         attributes["Main-Class"] = "co.thecodewarrior.unifontcli.MainKt"
+        attributes["Implementation-Title"] = "Unifont Utilities"
+        attributes["Implementation-Version"] = version
     }
-    from(configurations.runtime.map({ if(it.isDirectory) it else zipTree(it) }))
+    from(configurations.runtime.map { if(it.isDirectory) it else zipTree(it) })
     with(tasks["jar"] as CopySpec)
 }
 
