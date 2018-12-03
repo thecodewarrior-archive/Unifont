@@ -65,6 +65,7 @@ class ImportGuides: Importer(
     }
 
     private fun readGlyphs(image: BufferedImage, prefix: Int, flip: Boolean) {
+        println("Importing glyphs for prefix ${prefix.toString(16)}")
         for(xIndex in 0 until 16) {
             for(yIndex in 0 until 16) {
                 val gridPos = Guides.gridStart + (Guides.gridSize - vec(1, 1)) * vec(xIndex, yIndex)
@@ -74,55 +75,39 @@ class ImportGuides: Importer(
                 else
                     xIndex shl 4 or yIndex
                 val file = unifont.fileForCodepoint(codepoint)
-                file.glyphs.getOrPut(codepoint) { Glyph(codepoint, glyphImage) }.image = glyphImage
+                if(glyphImage == null) {
+                    file.glyphs[codepoint]?.missing = true
+                } else {
+                    val glyph = file.glyphs.getOrPut(codepoint) { Glyph(codepoint, glyphImage) }
+                    glyph.image = glyphImage
+                    glyph.missing = false
+                }
                 file.markDirty()
             }
         }
     }
 
-    private fun readGlyph(image: BufferedImage, gridPos: Vec2d): BufferedImage {
+    private fun readGlyph(image: BufferedImage, gridPos: Vec2d): BufferedImage? {
         val gridSubimage = image.getSubimage(gridPos.xi + 1, gridPos.yi + 1,
                 Guides.gridSize.xi - 2, Guides.gridSize.yi - 2)
-        var left = Int.MAX_VALUE
-        var right = Int.MIN_VALUE
-        var top = Int.MAX_VALUE
-        var bottom = Int.MIN_VALUE
 
-        gridSubimage.pixels().forEach { (x, y, color) ->
-            if(color == Color.BLACK.rgb) {
-                left = min(left, x)
-                right = max(right, x)
-                top = min(top, x)
-                bottom = max(bottom, x)
-            }
-        }
+        val height = 8
+        val width = 8
 
-        val height = 16
-
-        if(left == Int.MAX_VALUE && right == Int.MIN_VALUE && top == Int.MAX_VALUE && bottom == Int.MIN_VALUE) {
-            return BufferedImage(8, height, BufferedImage.TYPE_BYTE_BINARY, Glyph.COLOR_MODEL)
-        }
-
-        val width = when {
-            left < 8 -> 32
-            right < 16 -> 8
-            right < 24 -> 16
-            right < 32 -> 24
-            else -> throw RuntimeException("Somehow the right >= 32 (it is $right). This shouldn't happen.")
-        }
-
-        val inGridY = 8
-        val inGridX = if(width == 32) 0 else 8
+        val inGridY = 2
+        val inGridX = 2
 
         val glyphImage = BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, Glyph.COLOR_MODEL)
 
+        var hadPixels = false
         val glyphSubimage = gridSubimage.getSubimage(inGridX, inGridY, width, height).pixels()
         glyphSubimage.forEach { (x, y, color) ->
             if(color == Color.BLACK.rgb) {
+                hadPixels = true
                 glyphImage.setRGB(x, y, Color.BLACK.rgb)
             }
         }
 
-        return glyphImage
+        return if(hadPixels) glyphImage else null
     }
 }

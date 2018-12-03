@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 buildscript {
     var kotlin_version: String by extra
-    kotlin_version = "1.2.51"
+    kotlin_version = "1.3.0"
 
     repositories {
         mavenCentral()
@@ -43,8 +43,8 @@ subprojects {
 
     dependencies {
         "compile"(kotlin("stdlib-jdk8", kotlin_version))
-        "testCompile"("com.nhaarman", "mockito-kotlin-kt1.1", "1.5.0")
-        "testImplementation"("org.junit.jupiter", "junit-jupiter-api", "5.2.0-M1")
+        "testCompile"("com.nhaarman", "mockito-kotlin-kt1.1", "2.0.0")
+        "testImplementation"("org.junit.jupiter", "junit-jupiter-api", "5.3.2")
     }
 
     configure<JavaPluginConvention> {

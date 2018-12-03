@@ -15,8 +15,8 @@ class ExportPic: Exporter(
         name = "pic"
 ) {
     val plane by option("-p", "--plane")
-    val border = 32
-    val imageSize = 16*256 + border
+    val border = 16
+    val imageSize = 8*256 + border
 
     override fun run() {
         unifont.all.loadWithProgress()
@@ -34,8 +34,8 @@ class ExportPic: Exporter(
                     val xIndex = codepoint and 0xFF
                     val yIndex = codepoint and 0xFF00 shr 8
 
-                    val x = border + 16 * xIndex
-                    val y = border + 16 * yIndex
+                    val x = border + 8 * xIndex
+                    val y = border + 8 * yIndex
 
                     g.drawImage(glyph.image, x, y, null)
                     progress.step()
@@ -56,29 +56,30 @@ class ExportPic: Exporter(
         g.drawLine(border-2, border-2, border-2, imageSize-1)
 
         for(i in 0 until 256) {
-            val x = border + i*16
-            val y = border - 16
+            val x = border + i*8
+            val y = border - 8
 
             val hex = "%02X".format(i)
 
-            Text.drawText(g, x, y-1, hex, tracking = -1)
+            Text.drawText(g, x, y-5, "${hex[0]}")
+            Text.drawText(g, x, y, "${hex[1]}")
             if(i and 0xf == 0xf)
-                g.drawLine(x+15, y-16, x+15, y+14)
+                g.drawLine(x+7, y-8, x+7, y+6)
             else
-                g.drawLine(x+15, y, x+15, y+14)
+                g.drawLine(x+7, y, x+7, y+6)
         }
 
         for(i in 0 until 256) {
-            val x = border - 16
-            val y = border + i*16
+            val x = border - 8
+            val y = border + i*8
 
             val hex = "%02X".format(i)
 
             Text.drawText(g, x-2, y, hex)
             if(i and 0xf == 0xf)
-                g.drawLine(x-16, y+15, x+14, y+15)
+                g.drawLine(x-8, y+7, x+6, y+7)
             else
-                g.drawLine(x, y+15, x+14, y+15)
+                g.drawLine(x, y+7, x+6, y+7)
         }
 
     }

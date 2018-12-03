@@ -9,7 +9,7 @@ import java.awt.image.Raster
 import java.util.*
 import kotlin.math.floor
 
-class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16), var missing: Boolean = false,
+class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8), var missing: Boolean = false,
             var attributes: MutableMap<GlyphAttribute, String> = mutableMapOf(),
             var tags: MutableMap<GlyphTag, Int> = mutableMapOf()) {
 
@@ -28,7 +28,7 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16
     fun write(): String {
         val glyphHex: String
         if(missing) {
-            glyphHex = "0".repeat(8*16/4)
+            glyphHex = "0".repeat(8*8/4)
         } else {
             val data = (image.raster.dataBuffer as DataBufferByte).data
             glyphHex = data.joinToString("") { "%02X".format(it) }
@@ -69,8 +69,8 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16
             val metaString = line.after(';')
 
             val codepoint = legacyGlyph.until(':').toInt(16)
-            var glyphHex = legacyGlyph.after(':') ?: "0".repeat(16*8/4)
-            if(glyphHex.isEmpty()) "0".repeat(8*16/4)
+            var glyphHex = legacyGlyph.after(':') ?: "0".repeat(8*8/4)
+            if(glyphHex.isEmpty()) "0".repeat(8*8/4)
 
             val attributes = mutableMapOf<GlyphAttribute, String>()
             val flags = mutableMapOf<GlyphTag, Int>()
@@ -94,9 +94,8 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,16
 
             if(glyphHex.isEmpty() || glyphHex.any { it !in "0123456789abcdefABCDEF" })
                 throw IllegalArgumentException("Glyph string `$glyphHex` is not valid hex")
-            val width = floor(glyphHex.length*4.0/16).toInt()
 
-            val image = createGlyphImage(glyphHex.length*4/16, 16)
+            val image = createGlyphImage(8, 8)
             val glyph = Glyph(codepoint, image, missing, attributes, flags)
 
             val data = (image.raster.dataBuffer as DataBufferByte).data
