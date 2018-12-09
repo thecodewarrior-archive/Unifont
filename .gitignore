@@ -119,3 +119,6 @@ gradle-app.setting
 
 /UnifontCLI/build/
 /UnifontLib/build/
+classes
+hs_err_pid*.log
+replay_pid*.log

@@ -1,5 +1,5 @@
 package fontastic
-
+/*
 /**
  * Fontastic
  * A font file writer to create TTF and WOFF (Webfonts).
@@ -85,3 +85,4 @@ class FContour {
     }
 
 }
+*/

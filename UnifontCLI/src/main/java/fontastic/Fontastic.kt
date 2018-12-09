@@ -31,6 +31,7 @@
 
 package fontastic
 
+/*
 import fontastic.FGlyph
 import fontastic.FContour
 import fontastic.FPoint
@@ -65,7 +66,6 @@ class Fontastic
  * Font name
  */
 (
-        private val applet: PApplet,
         /**
          * Returns the font name.
          *
@@ -82,8 +82,7 @@ class Fontastic
      * @return The doubletype Engine used for font creation, so that you can
      * access all functions of doubletype in case you need them.
      */
-    var engine: Engine? = null
-        private set
+    var engine: Engine = Engine.getSingletonInstance()
 
     /**
      * Returns the .ttf file name
@@ -113,7 +112,7 @@ class Fontastic
      * can access functions of doubletype in case you need them.
      */
     val typefaceFile: TypefaceFile
-        get() = engine!!.typeface
+        get() = engine.typeface
 
     init {
         intitialiseFont()
@@ -125,29 +124,12 @@ class Fontastic
      * folder data/fontname.
      */
     private fun intitialiseFont() {
-        val data_dir = File(myParent.dataPath(""))
-        if (!data_dir.exists()) {
-            data_dir.mkdir()
-        }
-        val a_dir = File(myParent.dataPath(fontName))
-        if (!a_dir.exists()) {
-            a_dir.mkdir()
-        } else {
-            deleteFolderContents(a_dir, false)
-        }
-
-        engine = Engine.getSingletonInstance()
-        engine!!.buildNewTypeface(fontname, a_dir)
+        engine.buildNewTypeface(fontname, outputDirectory)
 
         this.setFontFamilyName(fontname)
         this.setVersion("CC BY-SA 3.0 http://creativecommons.org/licenses/by-sa/3.0/") // default
         // license
 
-        val directoryName = a_dir.toString() + File.separator + "bin" + File.separator
-
-        ttFfilename = "$directoryName$fontname.ttf"
-        wofFfilename = "$directoryName$fontname.woff"
-        HTMLfilename = directoryName + "template.html"
     }
 
     /**
@@ -158,11 +140,9 @@ class Fontastic
 
         // Create TTF file with doubletype
 
-        engine!!.addDefaultGlyphs()
-
         for (glyph in glyphs) {
 
-            val glyphFile = engine!!.addNewGlyph(glyph.glyphChar.toLong())
+            val glyphFile = engine.addNewGlyph(glyph.glyphChar.toLong())
             glyphFile.advanceWidth = glyph.advanceWidth
 
             for (contour in glyph.contours) {
@@ -194,7 +174,7 @@ class Fontastic
             glyphFile.saveGlyphFile()
         }
 
-        engine!!.buildTrueType(false)
+        engine.buildTrueType(false)
         if (debug)
             println("TTF file created successfully: " + ttFfilename!!)
 
@@ -619,3 +599,4 @@ class Fontastic
  * the hood).
  */// http://stackoverflow.com/questions/2368802/how-to-create-dynamic-template-string
 // Author: cletus http://stackoverflow.com/users/18393/cletus
+*/

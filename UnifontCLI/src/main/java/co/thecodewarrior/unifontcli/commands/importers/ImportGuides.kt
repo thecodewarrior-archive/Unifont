@@ -108,6 +108,8 @@ class ImportGuides: Importer(
             }
         }
 
+        if(gridSubimage.isColor(0, 0, Color.BLACK)) hadPixels = true
+
         return if(hadPixels) glyphImage else null
     }
 }

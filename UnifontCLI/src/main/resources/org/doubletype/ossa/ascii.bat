@@ -1,0 +1,1 @@
+native2ascii -encoding SJIS GuiResource_ja_JP.ja GuiResource_ja_JP.java

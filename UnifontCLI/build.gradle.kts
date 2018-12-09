@@ -5,12 +5,13 @@ group = "co.thecodewarrior.unifontcli"
 
 dependencies {
     compile(project(":UnifontLib"))
-    compile(fileTree("libs"))
+    compile(fileTree("libs") {
+        this.includes.add("*.jar")
+    })
     compile("com.github.ajalt", "clikt", "1.2.0")
     compile("commons-net", "commons-net", "3.6")
     compile("me.tongfei", "progressbar", "0.7.0")
 }
-
 
 plugins {
     application
