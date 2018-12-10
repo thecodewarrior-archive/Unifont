@@ -5,6 +5,7 @@ import co.thecodewarrior.unifontcli.utils.hex
 import co.thecodewarrior.unifontcli.utils.nullableFlag
 import co.thecodewarrior.unifontcli.utils.pixels
 import co.thecodewarrior.unifontlib.Glyph
+import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.utils.isColor
 import co.thecodewarrior.unifontlib.utils.max
 import co.thecodewarrior.unifontlib.utils.min
@@ -69,25 +70,23 @@ class ImportGuides: Importer(
         for(xIndex in 0 until 16) {
             for(yIndex in 0 until 16) {
                 val gridPos = Guides.gridStart + (Guides.gridSize - vec(1, 1)) * vec(xIndex, yIndex)
-                val glyphImage = readGlyph(image, gridPos)
                 val codepoint = (prefix shl 8) or if(flip)
                     yIndex shl 4 or xIndex
                 else
                     xIndex shl 4 or yIndex
                 val file = unifont.fileForCodepoint(codepoint)
-                if(glyphImage == null) {
-                    file.glyphs[codepoint]?.missing = true
-                } else {
-                    val glyph = file.glyphs.getOrPut(codepoint) { Glyph(codepoint, glyphImage) }
-                    glyph.image = glyphImage
-                    glyph.missing = false
+
+                val glyph = file.glyphs[codepoint] ?: Glyph(codepoint)
+                readGlyph(image, gridPos, glyph)
+                if(!glyph.missing) {
+                    file.glyphs[codepoint] = glyph
                 }
                 file.markDirty()
             }
         }
     }
 
-    private fun readGlyph(image: BufferedImage, gridPos: Vec2d): BufferedImage? {
+    private fun readGlyph(image: BufferedImage, gridPos: Vec2d, glyph: Glyph) {
         val gridSubimage = image.getSubimage(gridPos.xi + 1, gridPos.yi + 1,
                 Guides.gridSize.xi - 2, Guides.gridSize.yi - 2)
 
@@ -108,8 +107,31 @@ class ImportGuides: Importer(
             }
         }
 
-        if(gridSubimage.isColor(0, 0, Color.BLACK)) hadPixels = true
+        val underline = (0 until width+1).map { gridSubimage.isColor(inGridX + it, inGridY + 8, Guides.metricsColor) }
+        val leftHang: Int
+        val advance: Int
+        if(underline.none()) {
+            leftHang = 0
+            advance = 0
+        } else {
+            leftHang = underline.indexOfFirst { it }
+            advance = underline.indexOfLast { it } + 1 - leftHang
+        }
 
-        return if(hadPixels) glyphImage else null
+        if(!hadPixels && underline.none()) {
+            glyph.missing = true
+            glyph.image = Glyph.createGlyphImage(8, 8)
+            glyph.advance = 0
+            glyph.attributes.remove(GlyphAttribute.LEFT_HANG)
+        } else {
+            glyph.image = glyphImage
+            glyph.missing = false
+            glyph.advance = advance
+            if(leftHang == 0) {
+                glyph.attributes.remove(GlyphAttribute.LEFT_HANG)
+            } else {
+                glyph.attributes[GlyphAttribute.LEFT_HANG] = leftHang.toString()
+            }
+        }
     }
 }

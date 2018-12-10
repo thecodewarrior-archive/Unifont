@@ -13,12 +13,13 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
             var attributes: MutableMap<GlyphAttribute, String> = mutableMapOf(),
             var tags: MutableMap<GlyphTag, Int> = mutableMapOf()) {
 
-
-
     val width: Int
         get() = image.width
     val height: Int
         get() = image.height
+    var advance: Int
+        get() = attributes[GlyphAttribute.ADVANCE]?.toIntOrNull() ?: defaultAdvance()
+        set(value) { attributes[GlyphAttribute.ADVANCE] = value.toString() }
 
     init {
         if(width % 4 != 0)
@@ -50,6 +51,17 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
         return "$missingPrefix${codepoint.codepointHex()}:$glyphHex;$tagsString$attributesString"
     }
 
+    fun defaultAdvance(): Int {
+        var width = 0
+        for(x in 0 until image.width) {
+            for(y in 0 until image.height) {
+                if(image.isColor(x, y, Color.BLACK))
+                    width = max(width, x+1)
+            }
+        }
+        return width
+    }
+
     companion object {
         val COLOR_MODEL = IndexColorModel(Color(1f, 1f, 1f, 0f), Color.BLACK)
         val MISSING_PREFIX = "; Missing >"
@@ -69,7 +81,7 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
             val metaString = line.after(';')
 
             val codepoint = legacyGlyph.until(':').toInt(16)
-            var glyphHex = legacyGlyph.after(':') ?: "0".repeat(8*8/4)
+            val glyphHex = legacyGlyph.after(':') ?: "0".repeat(8*8/4)
             if(glyphHex.isEmpty()) "0".repeat(8*8/4)
 
             val attributes = mutableMapOf<GlyphAttribute, String>()
@@ -102,10 +114,14 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
             val bytes = glyphHex.chunked(2).map { it.toInt(16).toByte() }.toTypedArray().toByteArray()
             System.arraycopy(bytes, 0, data, 0, bytes.size)
 
+            if(GlyphAttribute.ADVANCE !in glyph.attributes) {
+                glyph.advance = glyph.defaultAdvance()
+            }
             return glyph
         }
 
-        fun createGlyphImage(width: Int, height: Int, bitSet: BitSet? = null) = BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, COLOR_MODEL)
+        fun createGlyphImage(width: Int, height: Int) =
+            BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, COLOR_MODEL)
     }
 }
 
@@ -118,6 +134,8 @@ class GlyphAttribute private constructor(val name: String) {
         val COMBINING = GlyphAttribute["combining"]
         val WIDTH_OVERRIDE = GlyphAttribute["width_override"]
         val NAME = GlyphAttribute["name"]
+        val ADVANCE = GlyphAttribute["advance"]
+        val LEFT_HANG = GlyphAttribute["left_hang"]
     }
 }
 class GlyphTag private constructor(val name: String) {

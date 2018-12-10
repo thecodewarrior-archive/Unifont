@@ -5,6 +5,7 @@ import co.thecodewarrior.unifontcli.utils.IndexColorModel
 import co.thecodewarrior.unifontcli.utils.drawPixel
 import co.thecodewarrior.unifontcli.utils.hex
 import co.thecodewarrior.unifontcli.utils.loadWithProgress
+import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.HexFile
 import co.thecodewarrior.unifontlib.utils.overlaps
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -34,12 +35,8 @@ class ExportGuides: Exporter(name="guides") {
     private val referenceScale = 4
 
     override fun run() {
-        val image = BufferedImage(274, 238, BufferedImage.TYPE_BYTE_BINARY,
-                IndexColorModel(Color(0xffffff), Color(0x000000), Color(0xffbfbf), Color(0xc0ffff))
-        )
+        val image = BufferedImage(274, 238, BufferedImage.TYPE_BYTE_BINARY, Guides.colorModel)
         val codepointRange = (prefix shl 8)..(prefix shl 8 or 0xFF)
-
-        val c = Color(ColorSpace.getInstance(ColorSpace.CS_sRGB), floatArrayOf(1f, 1f, 1f), 0f)
 
         var g = image.graphics
         g.color = Color.WHITE
@@ -143,10 +140,13 @@ class ExportGuides: Exporter(name="guides") {
                 val glyph = glyphs.glyphs[codepoint] ?: continue
                 if(glyph.missing) continue
                 val gridPos = Guides.gridStart + (Guides.gridSize - vec(1, 1)) * vec(xIndex, yIndex)
-                val glyphX = 2
-                val glyphY = 2
+                val glyphX = 3
+                val glyphY = 3
 
-                g.drawImage(glyph.image, gridPos.xi + glyphX + 1, gridPos.yi + glyphY + 1, null)
+                g.drawImage(glyph.image, gridPos.xi + glyphX, gridPos.yi + glyphY, null)
+                g.color = Guides.metricsColor
+                val leftHang = glyph.attributes[GlyphAttribute.LEFT_HANG]?.toIntOrNull() ?: 0
+                g.fillRect(gridPos.xi + glyphX + leftHang, gridPos.yi + glyphY + 8, glyph.advance, 1)
             }
         }
     }
