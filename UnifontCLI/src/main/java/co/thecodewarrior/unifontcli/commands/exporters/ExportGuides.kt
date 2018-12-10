@@ -5,6 +5,7 @@ import co.thecodewarrior.unifontcli.utils.IndexColorModel
 import co.thecodewarrior.unifontcli.utils.drawPixel
 import co.thecodewarrior.unifontcli.utils.hex
 import co.thecodewarrior.unifontcli.utils.loadWithProgress
+import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.HexFile
 import co.thecodewarrior.unifontlib.utils.overlaps
@@ -22,28 +23,79 @@ import javax.imageio.ImageIO
 import java.awt.image.AffineTransformOp
 import java.awt.geom.AffineTransform
 import java.awt.Toolkit.getDefaultToolkit
-
-
+import java.util.TreeMap
 
 class ExportGuides: Exporter(name="guides") {
     val prefix by option("-p", "--prefix", help = "The codepoint prefix in hex. The output image will contain all the " +
-            "codepoints from U+xxxx00 to U+xxxxFF.").hex().default(0)
+        "codepoints from U+xxxx00 to U+xxxxFF.").hex().default(0)
     val flip by option("-f", "--flip", help = "Flips the glyphs to go left to right, then top to bottom.")
-            .flag("-F", "--unflip")
+        .flag("-F", "--unflip")
     val reference by option("--reference", help = "Specifies a file to be exported as a reference").file()
+    val all by option("--all", help = "Exports all glyphs to the passed directory, skipping empty pages. Files are " +
+        "named 'pageXXXX' where 'XXXX' is the uppercase hexadecimal prefix for the page").flag("--single")
 
     private val referenceScale = 4
 
+    val glyphs = TreeMap<Int, Glyph>()
+
     override fun run() {
-        val image = BufferedImage(274, 238, BufferedImage.TYPE_BYTE_BINARY, Guides.colorModel)
+        if(all) {
+            file.mkdirs()
+            unifont.files.loadWithProgress()
+            unifont.files.forEach {
+                glyphs.putAll(it.glyphs)
+            }
+            val prefixes = mutableSetOf<Int>()
+            glyphs.forEach {
+                if(!it.value.missing)
+                    prefixes.add(it.value.codepoint shr 8)
+            }
+            prefixes.forEach { prefix ->
+                exportFile(file.resolve("page%04X.png".format(prefix)), prefix)
+            }
+        } else {
+            val codepointRange = (prefix shl 8)..(prefix shl 8 or 0xFF)
+            val neededFiles = unifont.filesForCodepoints(codepointRange)
+            neededFiles.loadWithProgress()
+            neededFiles.forEach {
+                glyphs.putAll(it.glyphs)
+            }
+            exportFile(file, prefix)
+            reference?.also {
+                exportReference(it, prefix)
+            }
+        }
+    }
+
+    private fun exportFile(file: File, prefix: Int) {
         val codepointRange = (prefix shl 8)..(prefix shl 8 or 0xFF)
+        val pageGlyphs = glyphs.subMap(codepointRange.start, true, codepointRange.endInclusive, true)
+
+        val image = BufferedImage(274, 238, BufferedImage.TYPE_BYTE_BINARY, Guides.colorModel)
+
+        val g = image.graphics
+        g.color = Color.WHITE
+        g.drawRect(0, 0, image.width, image.height)
+
+        drawMetadata(prefix, g)
+        drawAxes(prefix, g)
+        drawGuides(g)
+        drawGlyphs(prefix, g, pageGlyphs)
+
+        g.dispose()
+
+        ImageIO.write(image, file.extension, file)
+    }
+
+    private fun exportReference(file: File, prefix: Int) {
+        val image = BufferedImage(274 * referenceScale, 238 * referenceScale, BufferedImage.TYPE_BYTE_BINARY, Guides.colorModel)
 
         var g = image.graphics
         g.color = Color.WHITE
         g.drawRect(0, 0, image.width, image.height)
 
-        drawMetadata(g)
-        drawAxes(g)
+        drawMetadata(prefix, g)
+        drawAxes(prefix, g)
         drawGuides(g)
 
         var referenceImage = BufferedImage(image.width*referenceScale, image.height*referenceScale, BufferedImage.TYPE_INT_ARGB)
@@ -52,24 +104,17 @@ class ExportGuides: Exporter(name="guides") {
         val scaleOp = AffineTransformOp(at, AffineTransformOp.TYPE_NEAREST_NEIGHBOR)
         referenceImage = scaleOp.filter(image, referenceImage)
 
-        val neededFiles = unifont.filesForCodepoints(codepointRange)
-        neededFiles.loadWithProgress()
-        neededFiles.forEach {
-            drawGlyphs(g, it)
-        }
-
-        g.dispose()
         g = referenceImage.graphics
 
-        drawReferenceGlyphs(g)
+        drawReferenceGlyphs(g, prefix)
 
         g.dispose()
 
         ImageIO.write(image, file.extension, file)
-        reference?.also { ImageIO.write(referenceImage, it.extension, it) }
+        ImageIO.write(referenceImage, file.extension, file)
     }
 
-    private fun drawMetadata(g: Graphics) {
+    private fun drawMetadata(prefix: Int, g: Graphics) {
         drawMetadataLine(g, row = 0, value = prefix, bits = 16)
         drawMetadataLine(g, row = 1, value = if(flip) 1 else 0, bits = 1)
     }
@@ -90,7 +135,7 @@ class ExportGuides: Exporter(name="guides") {
         }
     }
 
-    private fun drawAxes(g: Graphics) {
+    private fun drawAxes(prefix: Int, g: Graphics) {
         val prefixText = "U+%04X${Text.X_CROSS}${Text.X_CROSS}".format(prefix)
         Text.drawText(g, 8, 15, prefixText)
 
@@ -130,14 +175,14 @@ class ExportGuides: Exporter(name="guides") {
         }
     }
 
-    private fun drawGlyphs(g: Graphics, glyphs: HexFile) {
+    private fun drawGlyphs(prefix: Int, g: Graphics, glyphs: Map<Int, Glyph>) {
         for(xIndex in 0 until 16) {
             for(yIndex in 0 until 16) {
                 val codepoint = (prefix shl 8) or if(flip)
                     yIndex shl 4 or xIndex
                 else
                     xIndex shl 4 or yIndex
-                val glyph = glyphs.glyphs[codepoint] ?: continue
+                val glyph = glyphs[codepoint] ?: continue
                 if(glyph.missing) continue
                 val gridPos = Guides.gridStart + (Guides.gridSize - vec(1, 1)) * vec(xIndex, yIndex)
                 val glyphX = 3
@@ -151,7 +196,7 @@ class ExportGuides: Exporter(name="guides") {
         }
     }
 
-    private fun drawReferenceGlyphs(g: Graphics) {
+    private fun drawReferenceGlyphs(g: Graphics, prefix: Int) {
         val target = referenceScale * 5
         var size: Float = target.toFloat()
         var nextJump = size/2

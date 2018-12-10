@@ -10,9 +10,11 @@ import co.thecodewarrior.unifontlib.utils.isColor
 import co.thecodewarrior.unifontlib.utils.max
 import co.thecodewarrior.unifontlib.utils.min
 import com.github.ajalt.clikt.core.PrintMessage
+import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import java.awt.Color
 import java.awt.image.BufferedImage
+import java.io.File
 import javax.imageio.ImageIO
 
 class ImportGuides: Importer(
@@ -23,9 +25,21 @@ class ImportGuides: Importer(
             "if not specified.").hex()
     val flip by option("-f", "--flip", help = "Flips the glyph order to go left to right, then top to bottom. This value " +
             "will be read from the image's metadata bars if not specified").nullableFlag("-F", "--unflip")
+    val all by option("--all", help = "Imports all .png files in the provided directory").flag("--single")
 
     override fun run() {
-        val image = ImageIO.read(this.file)
+        if(all) {
+            this.file.list { _, name -> name.endsWith(".png") }.forEach {
+                readFile(this.file.resolve(it))
+            }
+        } else {
+            readFile(this.file)
+        }
+        unifont.save()
+    }
+
+    private fun readFile(file: File) {
+        val image = ImageIO.read(file)
 
         // use command line arguments or, if they aren't supplied, read the metadata bars from the image.
         val prefix = prefix ?: readMetadataLine(image, row = 0, bits = 16)
@@ -34,8 +48,6 @@ class ImportGuides: Importer(
         ?: throw PrintMessage("Flip metadata bar is corrupt. Please specify explicitly with --flip or --unflip")
 
         readGlyphs(image, prefix, flip)
-
-        unifont.save()
     }
 
     private fun readMetadataLine(image: BufferedImage, row: Int, bits: Int): Int? {
@@ -114,11 +126,11 @@ class ImportGuides: Importer(
             leftHang = 0
             advance = 0
         } else {
-            leftHang = underline.indexOfFirst { it }
+            leftHang = underline.indexOfFirst { it }.let { if(it == -1) 0 else it }
             advance = underline.indexOfLast { it } + 1 - leftHang
         }
 
-        if(!hadPixels && underline.none()) {
+        if(!hadPixels && underline.none { it }) {
             glyph.missing = true
             glyph.image = Glyph.createGlyphImage(8, 8)
             glyph.advance = 0

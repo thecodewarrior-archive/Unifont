@@ -9,5 +9,5 @@ import java.nio.file.Path
 abstract class Importer(name: String? = null, epilog: String = "", help: String = ""):
         UnifontCommand(name = name, epilog = epilog, help = help) {
 
-    val file by argument(name = "file").file(exists = true, fileOkay = true, folderOkay = false, readable = true)
+    val file by argument(name = "file").file(exists = true, readable = true)
 }

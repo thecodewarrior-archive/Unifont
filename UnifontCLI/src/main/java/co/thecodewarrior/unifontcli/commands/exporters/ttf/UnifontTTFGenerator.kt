@@ -52,26 +52,25 @@ class UnifontTTFGenerator(val name: String, val outputDir: File) {
         if(range != null) typeface.addUnicodeRange(range.toString())
         val glyphFile = typeface.createGlyph(glyph.codepoint.toLong())
         if(GlyphTag.NONPRINTING !in glyph.tags) {
+            val leftHang = glyph.attributes[GlyphAttribute.LEFT_HANG]?.toIntOrNull() ?: 0
             val contours = createContours(glyph)
-            var maxX = 1
             contours.forEach {
                 val econtour = EContour()
                 econtour.type = EContour.k_cubic
 
                 for (point in it) {
                     val epoint = EContourPoint(
-                        pt(point.x),
+                        pt(point.x - leftHang),
                         pt(8 - point.y - 2),
                         true
                     )
                     econtour.addContourPoint(epoint)
-                    maxX = max(maxX, point.x)
                 }
                 glyphFile.addContour(econtour)
             }
-            glyphFile.advanceWidth = pt(maxX + 1).toInt()
+            glyphFile.advanceWidth = pt(glyph.advance).toInt()
         } else {
-            glyphFile.advanceWidth = pt(2).toInt()
+            glyphFile.advanceWidth = pt(glyph.advance).toInt()
         }
         glyph.attributes[GlyphAttribute.BLANK_WIDTH]?.toIntOrNull()?.let {
             glyphFile.advanceWidth = it

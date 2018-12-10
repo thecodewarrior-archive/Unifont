@@ -5,7 +5,7 @@ import co.thecodewarrior.unifontlib.HexLoadHandler
 import me.tongfei.progressbar.ProgressBar
 
 fun HexFile.loadWithProgress() {
-    ProgressBar("Load glyphs", estimatedCount.toLong()).use { progress ->
+    ProgressBar("Load glyphs", count.toLong()).use { progress ->
         val handler = object: HexLoadHandler {
             override fun readGlyphs(count: Int) {
                 progress.stepBy(count.toLong())
@@ -16,7 +16,7 @@ fun HexFile.loadWithProgress() {
 }
 
 fun List<HexFile>.loadWithProgress() {
-    val glyphCount = this.sumBy { it.estimatedCount }.toLong()
+    val glyphCount = this.sumBy { it.count }.toLong()
     ProgressBar("Load glyphs", glyphCount).use { progress ->
         val handler = object: HexLoadHandler {
             override fun readGlyphs(count: Int) {

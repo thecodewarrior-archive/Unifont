@@ -23,19 +23,18 @@ class HexFile(val path: Path) {
         }
     var blockName: String = "NO_NAME"
     var blockRange: IntRange = Int.MAX_VALUE..Int.MAX_VALUE
-    var estimatedCount: Int = 0
+    var count: Int = 0
 
     fun loadHeader() {
         try {
             if (!Files.exists(path)) return
-            val lines = Files.lines(path).limit(2).asSequence().toList()
+            val lines = Files.lines(path).asSequence().map { it.trim() }.toList()
             if (lines.size < 2)
                 return
             val nameLine = lines[0]
             val rangeLine = lines[1]
 
-            if (nameLine == null || rangeLine == null ||
-                    !nameLine.startsWith("; Block: ") || !rangeLine.startsWith("; Range: "))
+            if (!nameLine.startsWith("; Block: ") || !rangeLine.startsWith("; Range: "))
                 return
 
             blockName = nameLine.removePrefix("; Block: ")
@@ -43,7 +42,7 @@ class HexFile(val path: Path) {
                     .matchEntire(rangeLine.removePrefix("; Range: "))
                     ?: throw HexException("Illegal range line: `$rangeLine`")
             blockRange = rangeMatch.groupValues[1].codepointRange()
-            estimatedCount = rangeMatch.groupValues[2].toIntOrNull() ?: 0
+            count = rangeMatch.groupValues[2].toIntOrNull() ?: 0
         } catch (e: Exception) {
             throw HexException("Error loading header for $path", e)
         }
@@ -81,10 +80,10 @@ class HexFile(val path: Path) {
     fun save(legacy: Boolean = false, noheader: Boolean = false, saveHandler: HexSaveHandler? = null) {
         try {
             OutputStreamWriter(Files.newOutputStream(path)).use { output ->
-                estimatedCount = _glyphs.size
+                count = _glyphs.count { !it.value.missing }
                 if(!noheader) {
                     output.write("; Block: $blockName\n")
-                    output.write("; Range: ${blockRange.codepointRange()} ($estimatedCount)\n")
+                    output.write("; Range: ${blockRange.codepointRange()} ($count)\n")
                 }
 
                 var i = 0
