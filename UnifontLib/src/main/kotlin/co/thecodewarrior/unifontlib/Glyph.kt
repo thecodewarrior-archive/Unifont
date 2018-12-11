@@ -59,7 +59,7 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
                     width = max(width, x+1)
             }
         }
-        return width
+        return if(width == 0) 0 else width + 1
     }
 
     companion object {

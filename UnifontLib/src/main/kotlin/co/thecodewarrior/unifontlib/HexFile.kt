@@ -64,7 +64,7 @@ class HexFile(val path: Path) {
                     else -> {
                         val glyph = Glyph.read(line)
                         _glyphs[glyph.codepoint] = glyph
-                        i++
+                        if(!glyph.missing) i++
                         if(i >= 64) {
                             loadHandler?.readGlyphs(i)
                             i = 0
