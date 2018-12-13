@@ -20,6 +20,7 @@ object Images {
                 val r = resource("$name.png") ?: throw FileNotFoundException("!/$name.png")
                 ImageIO.read(r)
             } catch (e: IOException) {
+                e.printStackTrace()
                 val pixel = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
                 pixel.setRGB(0, 0, 0xFF00FF and (0xFF shl 24))
                 pixel

@@ -7,8 +7,6 @@ import co.thecodewarrior.unifontcli.utils.pixels
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.utils.isColor
-import co.thecodewarrior.unifontlib.utils.max
-import co.thecodewarrior.unifontlib.utils.min
 import com.github.ajalt.clikt.core.PrintMessage
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
@@ -43,9 +41,9 @@ class ImportGuides: Importer(
 
         // use command line arguments or, if they aren't supplied, read the metadata bars from the image.
         val prefix = prefix ?: readMetadataLine(image, row = 0, bits = 16)
-        ?: throw PrintMessage("Prefix metadata bar is corrupt. Please specify explicitly with --prefix")
+        ?: throw PrintMessage("Prefix metadata bar is corrupt for ${file.name}. Please specify explicitly with --prefix")
         val flip = flip ?: readMetadataLine(image, row = 1, bits = 1)?.let { it == 1 }
-        ?: throw PrintMessage("Flip metadata bar is corrupt. Please specify explicitly with --flip or --unflip")
+        ?: throw PrintMessage("Flip metadata bar is corrupt for ${file.name}. Please specify explicitly with --flip or --unflip")
 
         readGlyphs(image, prefix, flip)
     }
@@ -108,7 +106,7 @@ class ImportGuides: Importer(
         val inGridY = 2
         val inGridX = 2
 
-        val glyphImage = BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, Glyph.COLOR_MODEL)
+        val glyphImage = BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, Glyph.colorModel)
 
         var hadPixels = false
         val glyphSubimage = gridSubimage.getSubimage(inGridX, inGridY, width, height).pixels()
@@ -122,7 +120,7 @@ class ImportGuides: Importer(
         val underline = (0 until width+1).map { gridSubimage.isColor(inGridX + it, inGridY + 8, Guides.metricsColor) }
         val leftHang: Int
         val advance: Int
-        if(underline.none()) {
+        if(underline.none { it }) {
             leftHang = 0
             advance = 0
         } else {
@@ -130,7 +128,7 @@ class ImportGuides: Importer(
             advance = underline.indexOfLast { it } + 1 - leftHang
         }
 
-        if(!hadPixels && underline.none { it }) {
+        if(!hadPixels && advance == 0) {
             glyph.missing = true
             glyph.image = Glyph.createGlyphImage(8, 8)
             glyph.advance = 0
@@ -138,7 +136,10 @@ class ImportGuides: Importer(
         } else {
             glyph.image = glyphImage
             glyph.missing = false
-            glyph.advance = advance
+            if(advance == 0)
+                glyph.advance = glyph.defaultAdvance()
+            else
+                glyph.advance = advance
             if(leftHang == 0) {
                 glyph.attributes.remove(GlyphAttribute.LEFT_HANG)
             } else {

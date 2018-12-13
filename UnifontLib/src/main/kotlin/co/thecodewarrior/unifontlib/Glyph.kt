@@ -3,11 +3,7 @@ package co.thecodewarrior.unifontlib
 import co.thecodewarrior.unifontlib.utils.*
 import java.awt.Color
 import java.awt.image.BufferedImage
-import java.awt.image.DataBuffer
 import java.awt.image.DataBufferByte
-import java.awt.image.Raster
-import java.util.*
-import kotlin.math.floor
 
 class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8), var missing: Boolean = false,
             var attributes: MutableMap<GlyphAttribute, String> = mutableMapOf(),
@@ -20,6 +16,14 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
     var advance: Int
         get() = attributes[GlyphAttribute.ADVANCE]?.toIntOrNull() ?: defaultAdvance()
         set(value) { attributes[GlyphAttribute.ADVANCE] = value.toString() }
+    var leftHang: Int
+        get() = attributes[GlyphAttribute.LEFT_HANG]?.toIntOrNull() ?: 0
+        set(value) {
+            if(value == 0)
+                attributes.remove(GlyphAttribute.LEFT_HANG)
+            else
+                attributes[GlyphAttribute.LEFT_HANG] = value.toString()
+        }
 
     init {
         if(width % 4 != 0)
@@ -55,7 +59,7 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
         var width = 0
         for(x in 0 until image.width) {
             for(y in 0 until image.height) {
-                if(image.isColor(x, y, Color.BLACK))
+                if(image.getRGB(x, y).toUInt() and 0xFF000000u != 0u)
                     width = max(width, x+1)
             }
         }
@@ -63,7 +67,7 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
     }
 
     companion object {
-        val COLOR_MODEL = IndexColorModel(Color(1f, 1f, 1f, 0f), Color.BLACK)
+        var colorModel = IndexColorModel(Color(1f, 1f, 1f, 0f), Color.BLACK)
         val MISSING_PREFIX = "; Missing >"
 
         val attrRegex = """(\w+)(?:\s*=\s*(?:([^"]\S*|".+?[^\\]")))?""".toRegex()
@@ -121,7 +125,7 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
         }
 
         fun createGlyphImage(width: Int, height: Int) =
-            BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, COLOR_MODEL)
+            BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, colorModel)
     }
 }
 
