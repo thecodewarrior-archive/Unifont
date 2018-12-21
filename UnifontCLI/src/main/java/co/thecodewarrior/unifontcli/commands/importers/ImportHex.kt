@@ -8,7 +8,7 @@ object ImportHex: Importer(
         name = "hex"
 ) {
     override fun run() {
-        val inputHex = HexFile(file.toPath())
+        val inputHex = HexFile(unifont, file.toPath())
         inputHex.load()
     }
 }

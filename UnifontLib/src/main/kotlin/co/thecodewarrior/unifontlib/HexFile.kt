@@ -10,7 +10,7 @@ import java.nio.file.Path
 import java.util.*
 import kotlin.streams.asSequence
 
-class HexFile(val path: Path) {
+class HexFile(val project: Unifont, val path: Path) {
     var isDirty = false
         private set
     var loaded = false
@@ -62,7 +62,7 @@ class HexFile(val path: Path) {
                     line.startsWith("; Range: ") -> {}
                     line.startsWith("; Unassigned: ") -> {}
                     else -> {
-                        val glyph = Glyph.read(line)
+                        val glyph = Glyph.read(project, line)
                         _glyphs[glyph.codepoint] = glyph
                         if(!glyph.missing) i++
                         if(i >= 64) {

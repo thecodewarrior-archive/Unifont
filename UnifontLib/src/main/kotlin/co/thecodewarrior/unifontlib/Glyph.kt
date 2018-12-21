@@ -5,9 +5,11 @@ import java.awt.Color
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferByte
 
-class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8), var missing: Boolean = false,
-            var attributes: MutableMap<GlyphAttribute, String> = mutableMapOf(),
-            var tags: MutableMap<GlyphTag, Int> = mutableMapOf()) {
+class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage = createGlyphImage(project.settings.size, project.settings.size),
+    var missing: Boolean = false, var attributes: MutableMap<GlyphAttribute, String> = mutableMapOf(),
+    var tags: MutableMap<GlyphTag, Int> = mutableMapOf()) {
+
+    val character: String = String(Character.toChars(codepoint))
 
     val width: Int
         get() = image.width
@@ -55,6 +57,21 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
         return "$missingPrefix${codepoint.codepointHex()}:$glyphHex;$tagsString$attributesString"
     }
 
+    operator fun get(x: Int, y: Int): Boolean {
+        if(x !in 0 until image.width || y !in 0 until image.height) {
+            return false
+        }
+        val color = image.getRGB(x, y)
+        return color == colorModel.getRGB(1)
+    }
+
+    operator fun set(x: Int, y: Int, value: Boolean) {
+        if(x !in 0 until image.width || y !in 0 until image.height) {
+            return
+        }
+        image.setRGB(x, y, colorModel.getRGB(if(value) 1 else 0))
+    }
+
     fun defaultAdvance(): Int {
         var width = 0
         for(x in 0 until image.width) {
@@ -72,7 +89,7 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
 
         val attrRegex = """(\w+)(?:\s*=\s*(?:([^"]\S*|".+?[^\\]")))?""".toRegex()
 
-        fun read(line: String): Glyph {
+        fun read(project: Unifont, line: String): Glyph {
             @Suppress("NAME_SHADOWING")
             var line = line
 
@@ -111,8 +128,8 @@ class Glyph(val codepoint: Int, var image: BufferedImage = createGlyphImage(8,8)
             if(glyphHex.isEmpty() || glyphHex.any { it !in "0123456789abcdefABCDEF" })
                 throw IllegalArgumentException("Glyph string `$glyphHex` is not valid hex")
 
-            val image = createGlyphImage(8, 8)
-            val glyph = Glyph(codepoint, image, missing, attributes, flags)
+            val image = createGlyphImage(project.settings.size, project.settings.size)
+            val glyph = Glyph(project, codepoint, image, missing, attributes, flags)
 
             val data = (image.raster.dataBuffer as DataBufferByte).data
             val bytes = glyphHex.chunked(2).map { it.toInt(16).toByte() }.toTypedArray().toByteArray()

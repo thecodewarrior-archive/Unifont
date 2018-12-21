@@ -15,4 +15,4 @@ pluginManagement({
 })
 
 
-include("UnifontLib", "UnifontCLI")
+include("UnifontLib", "UnifontCLI", "UnifontGUI")
