@@ -1,7 +1,7 @@
 package co.thecodewarrior.unifontgui.controllers
 
 import co.thecodewarrior.unifontgui.Constants
-import co.thecodewarrior.unifontgui.sizeCapHeightTo
+import co.thecodewarrior.unifontgui.sizeHeightTo
 import co.thecodewarrior.unifontlib.EditorGuide
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.Unifont
@@ -15,24 +15,19 @@ import java.awt.Color
 import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.geom.AffineTransform
-import java.awt.geom.Point2D
 import java.awt.image.BufferedImage
 import java.nio.file.Paths
 import javafx.scene.control.Slider
 import javafx.scene.layout.VBox
+import javafx.scene.text.TextAlignment
 import java.awt.BasicStroke
-import java.awt.Stroke
+import java.awt.Font
 
 class GlyphEditor {
-    protected val unifont = Unifont(Paths.get(""))
-    val glyph: Glyph
-
-    init {
-        unifont.loadHeaders()
-        val file = unifont.fileForCodepoint('A'.toInt())
-        file.load()
-        glyph = file.glyphs['A'.toInt()]!!
-    }
+    lateinit var project: Unifont
+    lateinit var glyph: Glyph
+    private val horizontalGuides = mutableListOf<EditorGuide>()
+    private val verticalGuides = mutableListOf<EditorGuide>()
 
     @FXML
     lateinit var canvas: Canvas
@@ -45,11 +40,22 @@ class GlyphEditor {
     private var g: Graphics2D = fullImage.createGraphics()
 
     var mouseDragType: Boolean? = null
-    private val horizontalGuides = unifont.settings.horizontalGuides.toMutableList()
-    private val verticalGuides = unifont.settings.verticalGuides.toMutableList()
 
-    @FXML
-    fun initialize() {
+    val glyphPos: Pos = Pos(350, 100)
+    val referencePos: Pos = Pos(50, 100)
+    val glyphSize: Int = 200
+    var pixelSize: Int = 0
+    var referenceFont: Font = Constants.notoSans
+
+
+    fun setup(project: Unifont, glyph: Glyph) {
+        this.project = project
+        this.glyph = glyph
+        this.horizontalGuides.addAll(project.settings.horizontalGuides)
+        this.horizontalGuides.addAll(project.settings.verticalGuides)
+        this.pixelSize = glyphSize/project.settings.size
+        this.referenceFont = referenceFont.sizeHeightTo("X", pixelSize*project.settings.capHeight.toFloat())
+
         createSlider("Advance", 0, 1, glyph.advance) {
             glyph.advance = it
             redrawCanvas()
@@ -63,8 +69,9 @@ class GlyphEditor {
 
     fun createSlider(name: String, minOffset: Int, maxOffset: Int, initialValue: Int, change: (Int) -> Unit) {
         val label = Label(name)
-        label.alignment = javafx.geometry.Pos.TOP_CENTER
-        val slider = Slider(minOffset.toDouble(), unifont.settings.size.toDouble() + maxOffset, initialValue.toDouble())
+        label.textAlignment = TextAlignment.CENTER
+        label.prefWidth = 200.0
+        val slider = Slider(minOffset.toDouble(), project.settings.size.toDouble() + maxOffset, initialValue.toDouble())
         slider.isShowTickMarks = true
         slider.isSnapToTicks = true
         slider.majorTickUnit = 1.0
@@ -83,12 +90,6 @@ class GlyphEditor {
         metrics.children.add(slider)
     }
 
-    val glyphPos: Pos = Pos(350, 100)
-    val referencePos: Pos = Pos(50, 100)
-    val glyphSize: Int = 200
-    val pixelSize = glyphSize/unifont.settings.size
-    val referenceFont = Constants.notoSans.sizeCapHeightTo(pixelSize*unifont.settings.capHeight.toFloat())
-
     fun pixelCoords(canvasPos: Pos): Pos {
         return (canvasPos - glyphPos) / pixelSize
     }
@@ -98,7 +99,7 @@ class GlyphEditor {
             fullImage = BufferedImage(canvas.width.toInt(), canvas.height.toInt(), BufferedImage.TYPE_INT_ARGB)
             g = fullImage.createGraphics()
         }
-        val scale = glyphSize / unifont.settings.size.toDouble()
+        val scale = glyphSize / project.settings.size.toDouble()
 
         g.loadIdentity()
         g.background = Color(255, 255, 255, 0)
@@ -123,7 +124,7 @@ class GlyphEditor {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_DEFAULT)
 
 
-        val baselineY = (unifont.settings.size - unifont.settings.baseline)*pixelSize
+        val baselineY = (project.settings.size - project.settings.baseline)*pixelSize
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
         g.font = referenceFont
         g.drawString(glyph.character, referencePos.x, referencePos.y + baselineY)
@@ -144,7 +145,7 @@ class GlyphEditor {
         g.drawLine(referencePos.x + glyphSize, 0, referencePos.x + glyphSize, fullImage.height)
 
         g.color = Color.lightGray
-        (1 until unifont.settings.size).forEach {
+        (1 until project.settings.size).forEach {
             g.drawLine(glyphPos.x, glyphPos.y+it*pixelSize, glyphPos.x+glyphSize, glyphPos.y+it*pixelSize)
             g.drawLine(referencePos.x, referencePos.y+it*pixelSize, referencePos.x+glyphSize, referencePos.y+it*pixelSize)
 
@@ -154,7 +155,7 @@ class GlyphEditor {
     }
 
     fun drawReferenceGuides() {
-        val baselineY = (unifont.settings.size - unifont.settings.baseline)*pixelSize
+        val baselineY = (project.settings.size - project.settings.baseline)*pixelSize
 
         g.translate(referencePos.x, referencePos.y + baselineY)
 
@@ -188,16 +189,16 @@ class GlyphEditor {
     }
 
     fun drawGlyphGuides() {
-        val baselineY = (unifont.settings.size - unifont.settings.baseline)*pixelSize
+        val baselineY = (project.settings.size - project.settings.baseline)*pixelSize
         g.translate(glyphPos.x, glyphPos.y + baselineY)
 
         g.color = Color.BLUE
         g.drawLine(0, 0, glyphSize, 0)
-        val capHeight = unifont.settings.capHeight*pixelSize
+        val capHeight = project.settings.capHeight*pixelSize
         g.drawLine(0, -capHeight, glyphSize, -capHeight)
-        val xHeight = unifont.settings.xHeight*pixelSize
+        val xHeight = project.settings.xHeight*pixelSize
         g.drawLine(0, -xHeight, glyphSize, -xHeight)
-        val descender = unifont.settings.descender*pixelSize
+        val descender = project.settings.descender*pixelSize
         g.drawLine(0, descender, glyphSize, descender)
 
         g.color = Color.GREEN
