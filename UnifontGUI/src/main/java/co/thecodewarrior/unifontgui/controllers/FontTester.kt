@@ -16,6 +16,7 @@ import javafx.scene.layout.AnchorPane
 import javafx.stage.Stage
 import java.awt.Color
 import java.awt.Graphics2D
+import kotlin.math.roundToInt
 
 class FontTester: ChangeListener {
     lateinit var project: Unifont
@@ -62,7 +63,7 @@ class FontTester: ChangeListener {
         scale = scaleSlider.value
         var lastValue = scale.toInt()
         scaleSlider.valueProperty().addListener { _, _, value ->
-            val intValue = value.toInt()
+            val intValue = value.toDouble().roundToInt()
             scaleSlider.value = intValue.toDouble()
             if(intValue != lastValue) {
                 lastValue = intValue

@@ -32,8 +32,7 @@ import java.awt.Font
 import javafx.scene.input.KeyCombination
 import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyCodeCombination
-
-
+import kotlin.math.roundToInt
 
 class GlyphEditor: ChangeListener {
     lateinit var stage: Stage
@@ -158,7 +157,7 @@ class GlyphEditor: ChangeListener {
         slider.minorTickCount = 0
         var lastValue = initialValue
         slider.valueProperty().addListener { _, _, value ->
-            val intValue = value.toInt()
+            val intValue = value.toDouble().roundToInt()
             slider.value = intValue.toDouble()
             if(intValue != lastValue) {
                 lastValue = intValue
