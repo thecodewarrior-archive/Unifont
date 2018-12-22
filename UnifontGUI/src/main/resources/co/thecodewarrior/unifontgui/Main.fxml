@@ -3,13 +3,14 @@
 <?import javafx.scene.control.Menu?>
 <?import javafx.scene.control.MenuBar?>
 <?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 
-<AnchorPane fx:id="root" prefHeight="100.0" prefWidth="300.0" xmlns="http://javafx.com/javafx/8.0.172-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="co.thecodewarrior.unifontgui.controllers.Main">
+<AnchorPane fx:id="root" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="300.0" prefWidth="500.0" xmlns="http://javafx.com/javafx/8.0.172-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="co.thecodewarrior.unifontgui.controllers.Main">
    <children>
       <VBox prefHeight="200.0" prefWidth="100.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
          <children>
@@ -22,6 +23,11 @@
                         <MenuItem mnemonicParsing="false" onAction="#menuReloadUnicode" text="Reload Unicode Character Database" />
                   </items>
                 </Menu>
+                  <Menu mnemonicParsing="false" text="Window">
+                    <items>
+                      <MenuItem mnemonicParsing="false" onAction="#menuOpenPreview" text="Open Preview" />
+                    </items>
+                  </Menu>
               </menus>
             </MenuBar>
             <HBox fx:id="header" alignment="CENTER" prefWidth="200.0">
@@ -29,7 +35,11 @@
                   <TextField fx:id="prefixField" alignment="CENTER" onAction="#prefixChanged" promptText="0000xx" />
                </children>
             </HBox>
-            <FlowPane fx:id="flowPane" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" />
+            <ScrollPane fitToHeight="true" fitToWidth="true" hbarPolicy="NEVER" maxWidth="1.7976931348623157E308">
+               <content>
+                  <FlowPane fx:id="flowPane" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" />
+               </content>
+            </ScrollPane>
          </children>
       </VBox>
    </children>

@@ -3,38 +3,27 @@ package co.thecodewarrior.unifontgui.controllers
 import co.thecodewarrior.unifontgui.ChangeListener
 import co.thecodewarrior.unifontgui.Constants
 import co.thecodewarrior.unifontgui.sizeHeightTo
+import co.thecodewarrior.unifontgui.utils.openFXML
+import co.thecodewarrior.unifontgui.utils.loadIdentity
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.Unifont
 import co.thecodewarrior.unifontlib.ucd.UnicodeCharacterDatabase
 import javafx.embed.swing.SwingFXUtils
 import javafx.fxml.FXML
-import javafx.geometry.Pos
 import javafx.scene.canvas.Canvas
-import javafx.scene.control.Label
-import javafx.scene.layout.Border
-import javafx.scene.layout.BorderStroke
 import javafx.scene.layout.FlowPane
-import javafx.scene.layout.VBox
-import javafx.scene.text.TextAlignment
 import java.awt.Color
 import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
-import java.nio.file.Paths
-import javafx.scene.Scene
-import javafx.stage.StageStyle
 import javafx.stage.Stage
-import javafx.scene.Parent
-import javafx.fxml.FXMLLoader
 import javafx.scene.control.TextField
 import javafx.scene.layout.AnchorPane
 import javafx.scene.layout.HBox
 import javafx.stage.FileChooser
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import java.awt.event.FocusEvent
-import java.awt.event.FocusListener
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileOutputStream
@@ -42,7 +31,6 @@ import java.net.URL
 import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
-import kotlin.coroutines.CoroutineContext
 
 class Main {
     lateinit var project: Unifont
@@ -176,6 +164,13 @@ class Main {
         ucdPath.toFile().deleteRecursively()
     }
 
+    @FXML
+    fun menuOpenPreview() {
+        openFXML<FontTester>("FontTester", "Testing ${project.path.fileName}") { controller, stage ->
+            controller.setup(project, stage)
+        }
+    }
+
     companion object {
         fun open(parent: Stage) {
             val chooser = FileChooser()
@@ -187,14 +182,9 @@ class Main {
         }
 
         fun open(project: Unifont) {
-            val fxmlLoader = FXMLLoader(Constants.resource("Main.fxml"))
-            val root = fxmlLoader.load<Parent>()
-            val controller = fxmlLoader.getController<Main>()
-            val stage = Stage()
-            stage.title = project.path.fileName.toString()
-            stage.scene = Scene(root)
-            controller.setup(stage, project)
-            stage.show()
+            openFXML<Main>("Main", project.path.fileName.toString()) { controller, stage ->
+                controller.setup(stage, project)
+            }
         }
     }
 }
@@ -218,14 +208,9 @@ class GlyphCell(val project: Unifont, val index: Int): Canvas(project.settings.s
         g.font = font
         this.setOnMouseClicked {
             glyph?.also { glyph ->
-                val fxmlLoader = FXMLLoader(Constants.resource("GlyphEditor.fxml"))
-                val root = fxmlLoader.load<Parent>()
-                val controller = fxmlLoader.getController<GlyphEditor>()
-                val stage = Stage()
-                stage.title = "Edit U+%04X (${glyph.character})".format(glyph.codepoint)
-                stage.scene = Scene(root)
-                controller.setup(stage, project, glyph)
-                stage.show()
+                openFXML<GlyphEditor>("GlyphEditor", "Edit U+%04X (${glyph.character})".format(glyph.codepoint)) { controller, stage ->
+                    controller.setup(stage, project, glyph)
+                }
             }
         }
     }

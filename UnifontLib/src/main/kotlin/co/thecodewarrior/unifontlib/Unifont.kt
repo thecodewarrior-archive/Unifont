@@ -1,7 +1,9 @@
 package co.thecodewarrior.unifontlib
 
+import co.thecodewarrior.unifontlib.utils.Color
 import co.thecodewarrior.unifontlib.utils.getContinuousRanges
 import co.thecodewarrior.unifontlib.utils.overlaps
+import co.thecodewarrior.unifontlib.utils.toHexString
 import com.beust.klaxon.Converter
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
@@ -46,7 +48,9 @@ class Unifont(val path: Path) {
     }
 
     operator fun get(codepoint: Int): Glyph? {
-        return fileForCodepoint(codepoint).glyphs[codepoint]
+        val file = fileForCodepoint(codepoint)
+        if(!file.loaded) file.load()
+        return file.glyphs[codepoint]
     }
 
     operator fun set(codepoint: Int, glyph: Glyph?) {
@@ -124,53 +128,11 @@ class Unifont(val path: Path) {
 
                 override fun toJson(value: Any): String {
                     value as Color
-                    val a = if(value.alpha != 255) "%02x".format(value.alpha) else ""
-                    val r = "%02x".format(value.red)
-                    val g = "%02x".format(value.green)
-                    val b = "%02x".format(value.blue)
-
-                    return "#$a$r$g$b"
+                    return value.toHexString()
                 }
 
                 override fun fromJson(jv: JsonValue): Any {
-                    val jsonString = jv.string!!
-                    val hex = jsonString.removePrefix("#")
-                    val a: Int
-                    val r: Int
-                    val g: Int
-                    val b: Int
-
-                    when(hex.length) {
-                        3 -> {
-                            a = 255
-                            r = "${hex[0]}${hex[0]}".toInt(16)
-                            g = "${hex[1]}${hex[1]}".toInt(16)
-                            b = "${hex[2]}${hex[2]}".toInt(16)
-                        }
-                        4 -> {
-                            a = "${hex[0]}${hex[0]}".toInt(16)
-                            r = "${hex[1]}${hex[1]}".toInt(16)
-                            g = "${hex[2]}${hex[2]}".toInt(16)
-                            b = "${hex[3]}${hex[3]}".toInt(16)
-                        }
-                        6 -> {
-                            a = 255
-                            r = hex.substring(0..1).toInt(16)
-                            g = hex.substring(2..3).toInt(16)
-                            b = hex.substring(4..5).toInt(16)
-                        }
-                        8 -> {
-                            a = hex.substring(0..1).toInt(16)
-                            r = hex.substring(2..3).toInt(16)
-                            g = hex.substring(4..5).toInt(16)
-                            b = hex.substring(6..7).toInt(16)
-                        }
-                        else ->
-                            throw IllegalArgumentException("Hex value '$jsonString' is not valid hex " +
-                                "(valid formats are #RGB, #ARGB, #RRGGBB, and #AARRGGBB)")
-                    }
-
-                    return Color(r, g, b, a)
+                    return Color(jv.string!!)
                 }
 
             })

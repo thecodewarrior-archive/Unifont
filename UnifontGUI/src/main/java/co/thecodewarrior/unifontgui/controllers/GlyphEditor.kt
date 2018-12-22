@@ -4,6 +4,9 @@ import co.thecodewarrior.unifontgui.ChangeListener
 import co.thecodewarrior.unifontgui.Changes
 import co.thecodewarrior.unifontgui.Constants
 import co.thecodewarrior.unifontgui.sizeHeightTo
+import co.thecodewarrior.unifontgui.utils.Pos
+import co.thecodewarrior.unifontgui.utils.loadIdentity
+import co.thecodewarrior.unifontgui.utils.strokeWidth
 import co.thecodewarrior.unifontlib.EditorGuide
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.Unifont
@@ -64,6 +67,11 @@ class GlyphEditor: ChangeListener {
     lateinit var leftHangMetric: Slider
     lateinit var missingMetric: CheckBox
 
+    @FXML
+    fun initialize() {
+
+    }
+
     fun setup(stage: Stage, project: Unifont, glyph: Glyph) {
         this.stage = stage
         this.project = project
@@ -71,6 +79,7 @@ class GlyphEditor: ChangeListener {
         this.horizontalGuides.addAll(project.settings.horizontalGuides)
         this.verticalGuides.addAll(project.settings.verticalGuides)
 
+        stage.setOnHiding { shutdown() }
         stage.isResizable = false
 
         zoomMetric = createSlider("Zoom", 3, 32, pixelSize) {
@@ -371,93 +380,4 @@ class GlyphEditor: ChangeListener {
     fun canvasMouseReleased(e: MouseEvent) {
         mouseDragType = null
     }
-}
-
-data class Pos(val x: Int, val y: Int) {
-    operator fun plus(other: Pos): Pos {
-        return Pos(x + other.x, y + other.y)
-    }
-
-    operator fun minus(other: Pos): Pos {
-        return Pos(x - other.x, y - other.y)
-    }
-
-    operator fun unaryMinus(): Pos {
-        return Pos(-x, -y)
-    }
-
-    operator fun times(other: Pos): Pos {
-        return Pos(x*other.x, y*other.y)
-    }
-
-    operator fun times(other: Number): Pos {
-        return Pos((x*other.toDouble()).toInt(), (y*other.toDouble()).toInt())
-    }
-
-    operator fun div(other: Pos): Pos {
-        return Pos(x/other.x, y/other.y)
-    }
-
-    operator fun div(other: Number): Pos {
-        return Pos((x/other.toDouble()).toInt(), (y/other.toDouble()).toInt())
-    }
-
-    fun lineTo(other: Pos): List<Pos> {
-        val x1 = x
-        val y1 = y
-        val x2 = other.x
-        val y2 = other.y
-
-        var d = 0
-        val dy = Math.abs(y2 - y1)
-        val dx = Math.abs(x2 - x1)
-        val dy2 = dy shl 1
-        val dx2 = dx shl 1
-        val ix = if (x1 < x2)  1 else -1
-        val iy = if (y1 < y2)  1 else -1
-        var xx = x1
-        var yy = y1
-
-        val list = mutableListOf<Pos>()
-        if (dy <= dx) {
-            while (true) {
-                list.add(Pos(xx, yy))
-                if (xx == x2) break
-                xx += ix
-                d  += dy2
-                if (d > dx) {
-                    yy += iy
-                    d  -= dx2
-                }
-            }
-        }
-        else {
-            while (true) {
-                list.add(Pos(xx, yy))
-                if (yy == y2) break
-                yy += iy
-                d  += dx2
-                if (d > dy) {
-                    xx += ix
-                    d  -= dy2
-                }
-            }
-        }
-        return list
-    }
-}
-
-var Graphics2D.strokeWidth: Float
-    get() = (this.stroke as? BasicStroke)?.lineWidth ?: 1f
-    set(value) {
-        val current = this.stroke as? BasicStroke
-        if(current != null) {
-            this.stroke = BasicStroke(value, current.endCap, current.lineJoin,
-                current.miterLimit, current.dashArray, current.dashPhase)
-        } else {
-            this.stroke = BasicStroke(value)
-        }
-    }
-fun Graphics2D.loadIdentity() {
-    this.transform = AffineTransform()
 }

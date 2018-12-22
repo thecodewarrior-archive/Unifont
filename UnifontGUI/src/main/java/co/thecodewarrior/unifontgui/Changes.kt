@@ -5,21 +5,21 @@ import java.util.Objects
 import java.util.WeakHashMap
 
 object Changes {
-    private val listeners = mutableMapOf<IdentityHash, MutableList<WeakReference<ChangeListener>>>()
+    private val listeners = mutableMapOf<IdentityHash<Any>, MutableSet<IdentityHash<ChangeListener>>>()
 
     fun listen(target: Any, listener: ChangeListener) {
-        listeners.getOrPut(IdentityHash(target)) { mutableListOf() }.add(WeakReference(listener))
+        listeners.getOrPut(IdentityHash(target)) { mutableSetOf() }.add(IdentityHash(listener))
         cleanup()
     }
 
     fun unlisten(target: Any, listener: ChangeListener) {
-        listeners[IdentityHash(target)]?.remove(WeakReference(listener))
+        listeners[IdentityHash(target)]?.remove(IdentityHash(listener))
         cleanup()
     }
 
     fun submit(target: Any) {
         listeners[IdentityHash(target)]?.forEach {
-            it.get()?.changeOccured(target)
+            it.value.get()?.changeOccured(target)
         }
         cleanup()
     }
@@ -28,10 +28,13 @@ object Changes {
         listeners.keys.filter { it.value.get() == null }.forEach {
             listeners.remove(it)
         }
+        listeners.values.forEach { value ->
+            value.removeIf { it.value.get() == null }
+        }
     }
 }
 
-private class IdentityHash(value: Any) {
+private class IdentityHash<T>(value: T) {
     val value = WeakReference(value)
     val hash = System.identityHashCode(value)
 
@@ -41,7 +44,7 @@ private class IdentityHash(value: Any) {
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is IdentityHash) return false
+        if (other !is IdentityHash<*>) return false
 
         if (value.get() !== other.value.get()) return false
 

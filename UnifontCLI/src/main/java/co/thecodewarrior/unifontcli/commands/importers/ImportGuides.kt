@@ -86,7 +86,7 @@ class ImportGuides: Importer(
                     xIndex shl 4 or yIndex
                 val file = unifont.fileForCodepoint(codepoint)
 
-                val glyph = file.glyphs[codepoint] ?: Glyph(codepoint)
+                val glyph = file.glyphs[codepoint] ?: Glyph(unifont, codepoint)
                 readGlyph(image, gridPos, glyph)
                 if(!glyph.missing) {
                     file.glyphs[codepoint] = glyph
