@@ -127,6 +127,7 @@ class HexFile(val project: Unifont, val path: Path) {
                     }
                 }
             }
+            this.isDirty = false
         } catch (e: Exception) {
             throw HexException("Error saving glyphs for $path", e)
         }

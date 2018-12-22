@@ -1,5 +1,7 @@
 package co.thecodewarrior.unifontgui.controllers
 
+import co.thecodewarrior.unifontgui.ChangeListener
+import co.thecodewarrior.unifontgui.Changes
 import co.thecodewarrior.unifontgui.Constants
 import co.thecodewarrior.unifontgui.sizeHeightTo
 import co.thecodewarrior.unifontlib.EditorGuide
@@ -9,6 +11,7 @@ import javafx.embed.swing.SwingFXUtils
 import javafx.fxml.FXML
 import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
+import javafx.scene.control.CheckBox
 import javafx.scene.control.Label
 import javafx.scene.input.MouseEvent
 import java.awt.Color
@@ -20,10 +23,17 @@ import java.nio.file.Paths
 import javafx.scene.control.Slider
 import javafx.scene.layout.VBox
 import javafx.scene.text.TextAlignment
+import javafx.stage.Stage
 import java.awt.BasicStroke
 import java.awt.Font
+import javafx.scene.input.KeyCombination
+import javafx.scene.input.KeyCode
+import javafx.scene.input.KeyCodeCombination
 
-class GlyphEditor {
+
+
+class GlyphEditor: ChangeListener {
+    lateinit var stage: Stage
     lateinit var project: Unifont
     lateinit var glyph: Glyph
     private val horizontalGuides = mutableListOf<EditorGuide>()
@@ -40,38 +50,99 @@ class GlyphEditor {
     private var g: Graphics2D = fullImage.createGraphics()
 
     var mouseDragType: Boolean? = null
+    var lastPos: Pos? = null
+    var lastDragType: Boolean = false
 
-    val glyphPos: Pos = Pos(350, 100)
-    val referencePos: Pos = Pos(50, 100)
-    val glyphSize: Int = 200
-    var pixelSize: Int = 0
+    var pixelSize: Int = 16
+    var glyphSize: Int = 0
+    lateinit var glyphPos: Pos
+    lateinit var referencePos: Pos
     var referenceFont: Font = Constants.notoSans
 
+    lateinit var zoomMetric: Slider
+    lateinit var advanceMetric: Slider
+    lateinit var leftHangMetric: Slider
+    lateinit var missingMetric: CheckBox
 
-    fun setup(project: Unifont, glyph: Glyph) {
+    fun setup(stage: Stage, project: Unifont, glyph: Glyph) {
+        this.stage = stage
         this.project = project
-        this.glyph = glyph
+        this.pixelSize = 256/project.settings.size
         this.horizontalGuides.addAll(project.settings.horizontalGuides)
-        this.horizontalGuides.addAll(project.settings.verticalGuides)
-        this.pixelSize = glyphSize/project.settings.size
-        this.referenceFont = referenceFont.sizeHeightTo("X", pixelSize*project.settings.capHeight.toFloat())
+        this.verticalGuides.addAll(project.settings.verticalGuides)
 
-        createSlider("Advance", 0, 1, glyph.advance) {
-            glyph.advance = it
+        stage.isResizable = false
+
+        zoomMetric = createSlider("Zoom", 3, 32, pixelSize) {
+            zoom(it, keepCanvasSize = true)
             redrawCanvas()
+        }.also { slider ->
+            slider.valueChangingProperty().addListener { _, oldValue, newValue ->
+                if(oldValue && !newValue) {
+                    zoom(pixelSize)
+                    redrawCanvas()
+                }
+            }
         }
-        createSlider("Left overhang", 0, 0, glyph.leftHang) {
-            glyph.leftHang = it
-            redrawCanvas()
+
+        missingMetric = createCheckbox("Missing", glyph.missing) {
+            this.glyph.missing = it
+            Changes.submit(this.glyph)
         }
+
+        advanceMetric = createSlider("Advance", 0, project.settings.size + 1, glyph.advance) {
+            this.glyph.advance = it
+            Changes.submit(this.glyph)
+        }
+        leftHangMetric = createSlider("Left overhang", 0, project.settings.size, glyph.leftHang) {
+            this.glyph.leftHang = it
+            Changes.submit(this.glyph)
+        }
+
+        zoom(pixelSize)
+        loadGlyph(glyph)
+
         redrawCanvas()
     }
 
-    fun createSlider(name: String, minOffset: Int, maxOffset: Int, initialValue: Int, change: (Int) -> Unit) {
+    @FXML
+    fun nextGlyph() {
+        val file = project.fileForCodepoint(glyph.codepoint+1)
+        if(!file.loaded) file.load()
+        val newGlyph = file.glyphs[glyph.codepoint+1] ?: return
+        loadGlyph(newGlyph)
+        redrawCanvas()
+    }
+
+    @FXML
+    fun previousGlyph() {
+        val file = project.fileForCodepoint(glyph.codepoint-1)
+        if(!file.loaded) file.load()
+        val newGlyph = file.glyphs[glyph.codepoint-1] ?: return
+        loadGlyph(newGlyph)
+        redrawCanvas()
+    }
+
+    fun loadGlyph(glyph: Glyph) {
+        try {
+            this.unlistenTo(this.glyph)
+        } catch(e: UninitializedPropertyAccessException) {
+            // nop
+        }
+        this.glyph = glyph
+        this.listenTo(glyph)
+
+        advanceMetric.value = glyph.advance.toDouble()
+        leftHangMetric.value = glyph.leftHang.toDouble()
+        missingMetric.isSelected = glyph.missing
+        zoom(pixelSize)
+    }
+
+    fun createSlider(name: String, min: Int, max: Int, initialValue: Int, change: (Int) -> Unit): Slider {
         val label = Label(name)
         label.textAlignment = TextAlignment.CENTER
         label.prefWidth = 200.0
-        val slider = Slider(minOffset.toDouble(), project.settings.size.toDouble() + maxOffset, initialValue.toDouble())
+        val slider = Slider(min.toDouble(), max.toDouble(), initialValue.toDouble())
         slider.isShowTickMarks = true
         slider.isSnapToTicks = true
         slider.majorTickUnit = 1.0
@@ -88,10 +159,54 @@ class GlyphEditor {
 
         metrics.children.add(label)
         metrics.children.add(slider)
+        return slider
+    }
+
+    fun createCheckbox(name: String, initialValue: Boolean, change: (Boolean) -> Unit): CheckBox {
+        val checkbox = CheckBox(name)
+        checkbox.isSelected = initialValue
+        var lastValue = initialValue
+        checkbox.selectedProperty().addListener { _, _, value ->
+            if(value != lastValue) {
+                lastValue = value
+                change(value)
+            }
+        }
+
+        metrics.children.add(checkbox)
+        return checkbox
+    }
+
+    fun zoom(size: Int, keepCanvasSize: Boolean = false) {
+        pixelSize = size
+        glyphSize = project.settings.size*pixelSize
+        glyphPos = Pos(2*glyphSize, glyphSize/2)
+        referencePos = Pos(glyphSize/2, glyphSize/2)
+
+        this.referenceFont = referenceFont.sizeHeightTo("X", pixelSize*project.settings.capHeight.toFloat())
+        if(!keepCanvasSize) {
+            canvas.width = glyphSize * 3.5
+            canvas.height = glyphSize * 2.0
+        }
+
+        stage.sizeToScene()
     }
 
     fun pixelCoords(canvasPos: Pos): Pos {
         return (canvasPos - glyphPos) / pixelSize
+    }
+
+    fun shutdown() {
+        unlistenTo(this.glyph)
+    }
+
+    override fun changeOccured(target: Any) {
+        glyph.missing = false
+        advanceMetric.value = glyph.advance.toDouble()
+        leftHangMetric.value = glyph.leftHang.toDouble()
+        missingMetric.isSelected = glyph.missing
+        glyph.markDirty()
+        redrawCanvas()
     }
 
     fun redrawCanvas() {
@@ -221,10 +336,11 @@ class GlyphEditor {
     @FXML
     fun canvasMouseDragged(e: MouseEvent) {
         val pos = pixelCoords(Pos(e.x.toInt(), e.y.toInt()))
+        this.lastPos = pos
         val mouseDragType = mouseDragType ?: return
         if(mouseDragType != glyph[pos.x, pos.y]) {
             glyph[pos.x, pos.y] = mouseDragType
-            redrawCanvas()
+            Changes.submit(glyph)
         }
     }
 
@@ -236,9 +352,19 @@ class GlyphEditor {
     @FXML
     fun canvasMousePressed(e: MouseEvent) {
         val pos = pixelCoords(Pos(e.x.toInt(), e.y.toInt()))
-        mouseDragType = !glyph[pos.x, pos.y]
-        glyph[pos.x, pos.y] = mouseDragType!!
-        redrawCanvas()
+        val lastPos = lastPos
+        if(lastPos != null && e.isShiftDown) {
+            lastPos.lineTo(pos).forEach { pixel ->
+                glyph[pixel.x, pixel.y] = lastDragType
+            }
+            mouseDragType = lastDragType
+        } else {
+            mouseDragType = !glyph[pos.x, pos.y]
+            glyph[pos.x, pos.y] = mouseDragType!!
+        }
+        this.lastDragType = mouseDragType!!
+        this.lastPos = pos
+        Changes.submit(glyph)
     }
 
     @FXML
@@ -274,6 +400,50 @@ data class Pos(val x: Int, val y: Int) {
 
     operator fun div(other: Number): Pos {
         return Pos((x/other.toDouble()).toInt(), (y/other.toDouble()).toInt())
+    }
+
+    fun lineTo(other: Pos): List<Pos> {
+        val x1 = x
+        val y1 = y
+        val x2 = other.x
+        val y2 = other.y
+
+        var d = 0
+        val dy = Math.abs(y2 - y1)
+        val dx = Math.abs(x2 - x1)
+        val dy2 = dy shl 1
+        val dx2 = dx shl 1
+        val ix = if (x1 < x2)  1 else -1
+        val iy = if (y1 < y2)  1 else -1
+        var xx = x1
+        var yy = y1
+
+        val list = mutableListOf<Pos>()
+        if (dy <= dx) {
+            while (true) {
+                list.add(Pos(xx, yy))
+                if (xx == x2) break
+                xx += ix
+                d  += dy2
+                if (d > dx) {
+                    yy += iy
+                    d  -= dx2
+                }
+            }
+        }
+        else {
+            while (true) {
+                list.add(Pos(xx, yy))
+                if (yy == y2) break
+                yy += iy
+                d  += dx2
+                if (d > dy) {
+                    xx += ix
+                    d  -= dy2
+                }
+            }
+        }
+        return list
     }
 }
 

@@ -1,9 +1,12 @@
 package co.thecodewarrior.unifontgui.controllers
 
+import co.thecodewarrior.unifontgui.ChangeListener
 import co.thecodewarrior.unifontgui.Constants
 import co.thecodewarrior.unifontgui.sizeHeightTo
 import co.thecodewarrior.unifontlib.Glyph
+import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.Unifont
+import co.thecodewarrior.unifontlib.ucd.UnicodeCharacterDatabase
 import javafx.embed.swing.SwingFXUtils
 import javafx.fxml.FXML
 import javafx.geometry.Pos
@@ -27,11 +30,23 @@ import javafx.fxml.FXMLLoader
 import javafx.scene.control.TextField
 import javafx.scene.layout.AnchorPane
 import javafx.scene.layout.HBox
+import javafx.stage.FileChooser
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.awt.event.FocusEvent
 import java.awt.event.FocusListener
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.FileOutputStream
+import java.net.URL
+import java.nio.file.Files
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import kotlin.coroutines.CoroutineContext
 
 class Main {
-    val project = Unifont(Paths.get(""))
+    lateinit var project: Unifont
+    lateinit var stage: Stage
 
     @FXML
     lateinit var root: AnchorPane
@@ -55,17 +70,15 @@ class Main {
             }
         }
 
-    val cells = (0..255).map {
-        GlyphCell(project, it)
-    }
+    val cells = mutableListOf<GlyphCell>()
 
-    @FXML
-    fun initialize() {
+    fun setup(stage: Stage, project: Unifont) {
+        this.stage = stage
+        this.project = project
+        cells.addAll((0..255).map {
+            GlyphCell(project, it)
+        })
         flowPane.children.addAll(cells)
-        project.loadHeaders()
-        root.prefWidth = cells[0].width * 32
-        root.prefHeight = cells[0].height * 8 + header.height
-        prefix = 0
 
         root.requestFocus()
         prefixField.isFocusTraversable = false
@@ -74,20 +87,124 @@ class Main {
                 prefixChanged()
             }
         }
+
+        GlobalScope.launch {
+            project.loadHeaders()
+            prefix = 0
+        }
     }
 
     @FXML
     private fun prefixChanged() {
+        if(prefix == -1) return
         prefix = "0${prefixField.text}".toIntOrNull(16) ?: prefix
         prefixField.text = "%04x".format(prefix)
         root.requestFocus()
     }
+
+    @FXML
+    private fun menuOpenFile() {
+        Main.open(stage)
+    }
+
+    @FXML
+    private fun menuSaveFile() {
+        project.save()
+    }
+
+    @FXML
+    private fun menuReloadUnicode() {
+        val ucdPath = Files.createTempDirectory("UCD")
+        val destDirectory = ucdPath.toFile()
+        if (destDirectory.exists()) {
+            destDirectory.deleteRecursively()
+        }
+        destDirectory.mkdir()
+
+        val downloadStream = BufferedInputStream(
+            URL("http://www.unicode.org/Public/UCD/latest/ucd/UCD.zip").openStream()
+        )
+        val zipIn = ZipInputStream(downloadStream)
+        var zipEntry: ZipEntry? = zipIn.nextEntry
+        while (zipEntry != null) {
+            val filePath = destDirectory.resolve(zipEntry.name)
+            if (zipEntry.isDirectory) {
+                filePath.mkdir()
+            } else {
+                val bos = BufferedOutputStream(FileOutputStream(filePath))
+                val bytesIn = ByteArray(512)
+                var read: Int
+                while (zipIn.read(bytesIn).also { read = it } != -1) {
+                    bos.write(bytesIn, 0, read)
+                }
+                bos.close()
+            }
+
+            zipIn.closeEntry()
+            zipEntry = zipIn.nextEntry
+        }
+        zipIn.close()
+        val ucd = UnicodeCharacterDatabase(ucdPath)
+
+        project.all.forEach {
+            it.load()
+            it.markDirty()
+        }
+
+        ucd.blocks.forEach { block ->
+            val file = project.findBlockFile(block.value)
+            if(file == null) {
+                val lowerName = block.value.toLowerCase().replace("[^a-zA-Z]".toRegex(), "_")
+                val newFile = project.createBlock(lowerName)
+                newFile.blockRange = block.key
+                newFile.blockName = block.value
+            } else {
+                if(file.blockRange != block.key) {
+                    file.blockRange = block.key
+                }
+            }
+        }
+        project.redistributeGlyphs()
+        project.files.forEach { file ->
+            val codepoints = ucd.codepoints.subMap(file.blockRange.start, true, file.blockRange.endInclusive, true).values
+            codepoints.forEach { codepoint ->
+                file.glyphs.getOrPut(codepoint.codepoint) {
+                    Glyph(project, codepoint.codepoint, missing = true)
+                }.attributes[GlyphAttribute.NAME] = codepoint.name
+            }
+        }
+        ucdPath.toFile().deleteRecursively()
+    }
+
+    companion object {
+        fun open(parent: Stage) {
+            val chooser = FileChooser()
+            chooser.extensionFilters.add(FileChooser.ExtensionFilter("PixFont file", "*.pixfont"))
+            val file = chooser.showOpenDialog(parent)
+            if(file != null) {
+                open(Unifont(file.toPath().parent!!))
+            }
+        }
+
+        fun open(project: Unifont) {
+            val fxmlLoader = FXMLLoader(Constants.resource("Main.fxml"))
+            val root = fxmlLoader.load<Parent>()
+            val controller = fxmlLoader.getController<Main>()
+            val stage = Stage()
+            stage.title = project.path.fileName.toString()
+            stage.scene = Scene(root)
+            controller.setup(stage, project)
+            stage.show()
+        }
+    }
 }
 
-class GlyphCell(val project: Unifont, val index: Int): Canvas(project.settings.size*3+10.0, project.settings.size*3+5 + 30.0) {
+class GlyphCell(val project: Unifont, val index: Int): Canvas(project.settings.size*3+10.0, project.settings.size*3+5 + 30.0), ChangeListener {
     var glyph: Glyph? = null
         set(value) {
+            field?.also { this.unlistenTo(it) }
             field = value
+            field?.also { this.listenTo(it) }
             reload()
         }
 
@@ -104,13 +221,17 @@ class GlyphCell(val project: Unifont, val index: Int): Canvas(project.settings.s
                 val fxmlLoader = FXMLLoader(Constants.resource("GlyphEditor.fxml"))
                 val root = fxmlLoader.load<Parent>()
                 val controller = fxmlLoader.getController<GlyphEditor>()
-                controller.setup(project, glyph)
                 val stage = Stage()
                 stage.title = "Edit U+%04X (${glyph.character})".format(glyph.codepoint)
                 stage.scene = Scene(root)
+                controller.setup(stage, project, glyph)
                 stage.show()
             }
         }
+    }
+
+    override fun changeOccured(target: Any) {
+        reload()
     }
 
     private fun reload() {

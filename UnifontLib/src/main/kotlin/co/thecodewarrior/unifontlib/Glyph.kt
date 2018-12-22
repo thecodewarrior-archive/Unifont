@@ -32,6 +32,10 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
             throw IllegalArgumentException("Glyph width not a multiple of 4, it cannot be expressed in hex")
     }
 
+    fun markDirty() {
+        project.fileForCodepoint(codepoint).markDirty()
+    }
+
     fun write(): String {
         val glyphHex: String
         if(missing) {

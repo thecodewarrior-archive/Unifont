@@ -13,7 +13,7 @@ import kotlin.streams.asSequence
 class Unifont(val path: Path) {
     private val blockHexDir = path.resolve("blocks")
     private val homelessHexFile = path.resolve("homeless.hex")
-    private val projectFile = path.resolve("project.json")
+    private val projectFile = path.resolve("project.pixfont")
 
     val settings: ProjectSettings
     val files = mutableListOf<HexFile>()

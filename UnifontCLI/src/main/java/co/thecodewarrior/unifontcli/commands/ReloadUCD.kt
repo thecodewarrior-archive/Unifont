@@ -99,7 +99,7 @@ class ReloadUCD: UnifontCommand(
             val codepoints = ucd.codepoints.subMap(file.blockRange.start, true, file.blockRange.endInclusive, true).values
             codepoints.forEach { codepoint ->
                 file.glyphs.getOrPut(codepoint.codepoint) {
-                    Glyph(codepoint.codepoint, missing = true)
+                    Glyph(unifont, codepoint.codepoint, missing = true)
                 }.attributes[GlyphAttribute.NAME] = codepoint.name
             }
         }

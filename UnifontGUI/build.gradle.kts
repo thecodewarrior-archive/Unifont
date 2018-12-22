@@ -9,6 +9,7 @@ dependencies {
         this.includes.add("*.jar")
     })
     compile("commons-net", "commons-net", "3.6")
+    implementation("org.jetbrains.kotlinx", "kotlinx-coroutines-core", "1.1.0")
 }
 
 
