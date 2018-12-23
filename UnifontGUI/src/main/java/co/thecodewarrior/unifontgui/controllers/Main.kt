@@ -8,6 +8,7 @@ import co.thecodewarrior.unifontgui.utils.loadIdentity
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.Unifont
+import co.thecodewarrior.unifontlib.autoKern
 import co.thecodewarrior.unifontlib.ucd.UnicodeCharacterDatabase
 import javafx.embed.swing.SwingFXUtils
 import javafx.fxml.FXML
@@ -86,6 +87,11 @@ class Main {
         prefix = "0${prefixField.text}".toIntOrNull(16) ?: prefix
         prefixField.text = "%04x".format(prefix)
         root.requestFocus()
+    }
+
+    @FXML
+    private fun menuAutoKern() {
+        project.autoKern(2, 2)
     }
 
     @FXML

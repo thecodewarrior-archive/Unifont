@@ -15,6 +15,7 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
         get() = image.width
     val height: Int
         get() = image.height
+
     var advance: Int
         get() = attributes[GlyphAttribute.ADVANCE]?.toIntOrNull() ?: 0
         set(value) { attributes[GlyphAttribute.ADVANCE] = value.toString() }
@@ -26,6 +27,18 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
             else
                 attributes[GlyphAttribute.LEFT_BEARING] = value.toString()
         }
+    var noAutoKern: Boolean
+        get() = attributes[GlyphAttribute.NO_AUTO_KERN] != null
+        set(value) {
+            if(value)
+               attributes[GlyphAttribute.NO_AUTO_KERN] = "yes"
+            else
+               attributes.remove(GlyphAttribute.NO_AUTO_KERN)
+        }
+
+    var name: String
+        get() = attributes[GlyphAttribute.NAME] ?: "?"
+        set(value) { attributes[GlyphAttribute.NAME] = value }
 
     init {
         if(width % 4 != 0)
@@ -161,6 +174,7 @@ class GlyphAttribute private constructor(val name: String) {
         val NAME = GlyphAttribute["name"]
         val ADVANCE = GlyphAttribute["advance"]
         val LEFT_BEARING = GlyphAttribute["left_bearing"]
+        val NO_AUTO_KERN = GlyphAttribute["no_auto_kern"]
     }
 }
 class GlyphTag private constructor(val name: String) {

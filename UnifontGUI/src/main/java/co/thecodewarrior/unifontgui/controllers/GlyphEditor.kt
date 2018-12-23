@@ -66,6 +66,7 @@ class GlyphEditor: ChangeListener {
     lateinit var advanceMetric: Slider
     lateinit var leftBearingMetric: Slider
     lateinit var missingMetric: CheckBox
+    lateinit var kernableMetric: CheckBox
 
     @FXML
     fun initialize() {
@@ -110,6 +111,10 @@ class GlyphEditor: ChangeListener {
                 },
                 Shortcut("Ctrl+Right") {
                     this.nextGlyph()
+                },
+                Shortcut("Alt+K") {
+                    this.glyph.noAutoKern = !this.glyph.noAutoKern
+                    Changes.submit(this.glyph)
                 }
         )
 
@@ -127,6 +132,11 @@ class GlyphEditor: ChangeListener {
 
         missingMetric = createCheckbox("Missing", glyph.missing) {
             this.glyph.missing = it
+            Changes.submit(this.glyph)
+        }
+
+        kernableMetric = createCheckbox("Don't auto-kern", glyph.noAutoKern) {
+            this.glyph.noAutoKern = it
             Changes.submit(this.glyph)
         }
 
@@ -172,6 +182,7 @@ class GlyphEditor: ChangeListener {
         advanceMetric.value = glyph.advance.toDouble()
         leftBearingMetric.value = glyph.leftBearing.toDouble()
         missingMetric.isSelected = glyph.missing
+        kernableMetric.isSelected = glyph.noAutoKern
         zoom(pixelSize)
     }
 
@@ -242,6 +253,7 @@ class GlyphEditor: ChangeListener {
         advanceMetric.value = glyph.advance.toDouble()
         leftBearingMetric.value = glyph.leftBearing.toDouble()
         missingMetric.isSelected = glyph.missing
+        kernableMetric.isSelected = glyph.noAutoKern
         glyph.markDirty()
         redrawCanvas()
     }

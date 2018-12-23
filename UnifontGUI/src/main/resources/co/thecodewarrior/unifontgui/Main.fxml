@@ -20,9 +20,14 @@
                   <items>
                     <MenuItem mnemonicParsing="false" onAction="#menuOpenFile" text="Open" />
                         <MenuItem mnemonicParsing="false" onAction="#menuSaveFile" text="Save" />
-                        <MenuItem mnemonicParsing="false" onAction="#menuReloadUnicode" text="Reload Unicode Character Database" />
                   </items>
                 </Menu>
+                  <Menu mnemonicParsing="false" text="Font">
+                    <items>
+                        <MenuItem mnemonicParsing="false" onAction="#menuAutoKern" text="Auto-kern" />
+                        <MenuItem mnemonicParsing="false" onAction="#menuReloadUnicode" text="Reload Unicode Character Database" />
+                    </items>
+                  </Menu>
                   <Menu mnemonicParsing="false" text="Window">
                     <items>
                       <MenuItem mnemonicParsing="false" onAction="#menuOpenPreview" text="Open Preview" />
