@@ -147,18 +147,14 @@ class GlyphEditor: ChangeListener {
 
     @FXML
     fun nextGlyph() {
-        val file = project.fileForCodepoint(glyph.codepoint+1)
-        if(!file.loaded) file.load()
-        val newGlyph = file.glyphs[glyph.codepoint+1] ?: return
+        val newGlyph = project[glyph.codepoint+1] ?: return
         loadGlyph(newGlyph)
         redrawCanvas()
     }
 
     @FXML
     fun previousGlyph() {
-        val file = project.fileForCodepoint(glyph.codepoint-1)
-        if(!file.loaded) file.load()
-        val newGlyph = file.glyphs[glyph.codepoint-1] ?: return
+        val newGlyph = project[glyph.codepoint-1] ?: return
         loadGlyph(newGlyph)
         redrawCanvas()
     }

@@ -48,16 +48,16 @@ class Unifont(val path: Path) {
     }
 
     operator fun get(codepoint: Int): Glyph? {
-        val file = fileForCodepoint(codepoint)
-        if(!file.loaded) file.load()
-        return file.glyphs[codepoint]
+        return fileForCodepoint(codepoint).glyphs[codepoint]
     }
 
     operator fun set(codepoint: Int, glyph: Glyph?) {
+        val file = fileForCodepoint(codepoint)
+        file.markDirty()
         if(glyph == null) {
-            fileForCodepoint(codepoint).glyphs.remove(codepoint)
+            file.glyphs.remove(codepoint)
         } else {
-            fileForCodepoint(codepoint).glyphs[codepoint] = glyph
+            file.glyphs[codepoint] = glyph
         }
     }
 

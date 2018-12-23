@@ -51,9 +51,7 @@ class Main {
                 field = value
                 cells.forEach {
                     val codepoint = (value shl 8) + it.index
-                    val file = project.fileForCodepoint(codepoint)
-                    if (!file.loaded) file.load()
-                    it.glyph = file.glyphs[codepoint]
+                    it.glyph = project[codepoint]
                 }
             }
         }
