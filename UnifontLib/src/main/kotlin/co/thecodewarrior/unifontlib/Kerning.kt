@@ -76,16 +76,18 @@ fun Unifont.autoKern(targetSpacing: Int, gapSize: Int) {
                 .map { GlyphPair(glyph, it) }
         }
 
+    autoKerning.pairs.clear()
     for(pair in pairs) {
         val kernPair = KernPair(pair.left.glyph.codepoint, pair.right.glyph.codepoint)
         val minGap = pair.gaps.min()
         if(minGap != null && minGap != Int.MAX_VALUE) {
             val kerning = targetSpacing - minGap
-            autoKerning.pairs[kernPair] = kerning
+            if(kerning != 0) autoKerning.pairs[kernPair] = kerning
             continue
         }
         autoKerning.pairs.remove(kernPair)
     }
+    autoKerning.markDirty()
 }
 
 class GlyphPair(val left: GlyphProfile, val right: GlyphProfile) {
