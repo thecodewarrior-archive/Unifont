@@ -16,15 +16,15 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
     val height: Int
         get() = image.height
     var advance: Int
-        get() = attributes[GlyphAttribute.ADVANCE]?.toIntOrNull() ?: defaultAdvance()
+        get() = attributes[GlyphAttribute.ADVANCE]?.toIntOrNull() ?: 0
         set(value) { attributes[GlyphAttribute.ADVANCE] = value.toString() }
-    var leftHang: Int
-        get() = attributes[GlyphAttribute.LEFT_HANG]?.toIntOrNull() ?: 0
+    var leftBearing: Int
+        get() = attributes[GlyphAttribute.LEFT_BEARING]?.toIntOrNull() ?: 0
         set(value) {
             if(value == 0)
-                attributes.remove(GlyphAttribute.LEFT_HANG)
+                attributes.remove(GlyphAttribute.LEFT_BEARING)
             else
-                attributes[GlyphAttribute.LEFT_HANG] = value.toString()
+                attributes[GlyphAttribute.LEFT_BEARING] = value.toString()
         }
 
     init {
@@ -160,7 +160,7 @@ class GlyphAttribute private constructor(val name: String) {
         val WIDTH_OVERRIDE = GlyphAttribute["width_override"]
         val NAME = GlyphAttribute["name"]
         val ADVANCE = GlyphAttribute["advance"]
-        val LEFT_HANG = GlyphAttribute["left_hang"]
+        val LEFT_BEARING = GlyphAttribute["left_bearing"]
     }
 }
 class GlyphTag private constructor(val name: String) {

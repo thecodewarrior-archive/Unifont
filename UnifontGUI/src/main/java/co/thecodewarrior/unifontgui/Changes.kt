@@ -1,14 +1,14 @@
 package co.thecodewarrior.unifontgui
 
 import java.lang.ref.WeakReference
-import java.util.Objects
-import java.util.WeakHashMap
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 object Changes {
-    private val listeners = mutableMapOf<IdentityHash<Any>, MutableSet<IdentityHash<ChangeListener>>>()
+    private val listeners = ConcurrentHashMap<IdentityHash<Any>, MutableSet<IdentityHash<ChangeListener>>>()
 
     fun listen(target: Any, listener: ChangeListener) {
-        listeners.getOrPut(IdentityHash(target)) { mutableSetOf() }.add(IdentityHash(listener))
+        listeners.getOrPut(IdentityHash(target)) { Collections.newSetFromMap(ConcurrentHashMap()) }.add(IdentityHash(listener))
         cleanup()
     }
 

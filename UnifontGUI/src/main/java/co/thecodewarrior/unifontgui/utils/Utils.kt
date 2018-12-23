@@ -4,6 +4,8 @@ import co.thecodewarrior.unifontgui.Constants
 import javafx.fxml.FXMLLoader
 import javafx.scene.Parent
 import javafx.scene.Scene
+import javafx.scene.input.KeyCombination
+import javafx.scene.input.KeyEvent
 import javafx.stage.Stage
 import java.awt.BasicStroke
 import java.awt.Graphics2D
@@ -35,3 +37,18 @@ fun <T> openFXML(name: String, title: String, configure: (T, Stage) -> Unit) {
     stage.show()
 }
 
+fun Scene.addShortcuts(vararg shortcuts: Shortcut) {
+    this.addEventFilter(KeyEvent.KEY_PRESSED) { event ->
+        shortcuts.forEach { shortcut ->
+            if(shortcut.keyCombination.match(event)) {
+                shortcut.callback()
+                event.consume()
+                return@addEventFilter
+            }
+        }
+    }
+}
+
+data class Shortcut(val shortcut: String, val callback: () -> Unit) {
+    val keyCombination = KeyCombination.keyCombination(shortcut)
+}

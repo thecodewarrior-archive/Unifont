@@ -208,7 +208,7 @@ class GlyphCell(val project: Unifont, val index: Int): Canvas(project.settings.s
         g.font = font
         this.setOnMouseClicked {
             glyph?.also { glyph ->
-                openFXML<GlyphEditor>("GlyphEditor", "Edit U+%04X (${glyph.character})".format(glyph.codepoint)) { controller, stage ->
+                openFXML<GlyphEditor>("GlyphEditor", "") { controller, stage ->
                     controller.setup(stage, project, glyph)
                 }
             }

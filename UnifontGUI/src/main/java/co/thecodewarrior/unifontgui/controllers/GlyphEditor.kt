@@ -4,9 +4,7 @@ import co.thecodewarrior.unifontgui.ChangeListener
 import co.thecodewarrior.unifontgui.Changes
 import co.thecodewarrior.unifontgui.Constants
 import co.thecodewarrior.unifontgui.sizeHeightTo
-import co.thecodewarrior.unifontgui.utils.Pos
-import co.thecodewarrior.unifontgui.utils.loadIdentity
-import co.thecodewarrior.unifontgui.utils.strokeWidth
+import co.thecodewarrior.unifontgui.utils.*
 import co.thecodewarrior.unifontlib.EditorGuide
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.Unifont
@@ -20,20 +18,23 @@ import javafx.scene.input.MouseEvent
 import java.awt.Color
 import java.awt.Graphics2D
 import java.awt.RenderingHints
-import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
-import java.nio.file.Paths
 import javafx.scene.control.Slider
 import javafx.scene.layout.VBox
 import javafx.scene.text.TextAlignment
 import javafx.stage.Stage
 import java.awt.BasicStroke
 import java.awt.Font
-import javafx.scene.input.KeyCombination
-import javafx.scene.input.KeyCode
-import javafx.scene.input.KeyCodeCombination
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
+/**
+ * shortcuts:
+ * alt-left/right = advance -/+
+ * shift-alt-left/right = left bearing -/+
+ * ctrl-left/right = prev/next glyph
+ */
 class GlyphEditor: ChangeListener {
     lateinit var stage: Stage
     lateinit var project: Unifont
@@ -63,7 +64,7 @@ class GlyphEditor: ChangeListener {
 
     lateinit var zoomMetric: Slider
     lateinit var advanceMetric: Slider
-    lateinit var leftHangMetric: Slider
+    lateinit var leftBearingMetric: Slider
     lateinit var missingMetric: CheckBox
 
     @FXML
@@ -80,6 +81,37 @@ class GlyphEditor: ChangeListener {
 
         stage.setOnHiding { shutdown() }
         stage.isResizable = false
+
+        stage.scene.addShortcuts(
+                Shortcut("Alt+Left") {
+                    this.glyph.advance = max(0, this.glyph.advance-1)
+                    Changes.submit(this.glyph)
+                },
+                Shortcut("Alt+Right") {
+                    this.glyph.advance = min(project.settings.size, this.glyph.advance+1)
+                    Changes.submit(this.glyph)
+                },
+                Shortcut("Shift+Alt+Left") {
+                    if(glyph.leftBearing < project.settings.size) {
+                        this.glyph.advance = min(project.settings.size, this.glyph.advance + 1)
+                        this.glyph.leftBearing++
+                    }
+                    Changes.submit(this.glyph)
+                },
+                Shortcut("Shift+Alt+Right") {
+                    if(glyph.leftBearing > -project.settings.size) {
+                        this.glyph.advance = max(0, this.glyph.advance - 1)
+                        this.glyph.leftBearing--
+                    }
+                    Changes.submit(this.glyph)
+                },
+                Shortcut("Ctrl+Left") {
+                    this.previousGlyph()
+                },
+                Shortcut("Ctrl+Right") {
+                    this.nextGlyph()
+                }
+        )
 
         zoomMetric = createSlider("Zoom", 3, 32, pixelSize) {
             zoom(it, keepCanvasSize = true)
@@ -102,8 +134,8 @@ class GlyphEditor: ChangeListener {
             this.glyph.advance = it
             Changes.submit(this.glyph)
         }
-        leftHangMetric = createSlider("Left overhang", 0, project.settings.size, glyph.leftHang) {
-            this.glyph.leftHang = it
+        leftBearingMetric = createSlider("Left bearing", -project.settings.size, project.settings.size, glyph.leftBearing) {
+            this.glyph.leftBearing = it
             Changes.submit(this.glyph)
         }
 
@@ -139,9 +171,10 @@ class GlyphEditor: ChangeListener {
         }
         this.glyph = glyph
         this.listenTo(glyph)
+        this.stage.title = "Edit U+%04X (${glyph.character})".format(glyph.codepoint)
 
         advanceMetric.value = glyph.advance.toDouble()
-        leftHangMetric.value = glyph.leftHang.toDouble()
+        leftBearingMetric.value = glyph.leftBearing.toDouble()
         missingMetric.isSelected = glyph.missing
         zoom(pixelSize)
     }
@@ -211,7 +244,7 @@ class GlyphEditor: ChangeListener {
     override fun changeOccured(target: Any) {
         glyph.missing = false
         advanceMetric.value = glyph.advance.toDouble()
-        leftHangMetric.value = glyph.leftHang.toDouble()
+        leftBearingMetric.value = glyph.leftBearing.toDouble()
         missingMetric.isSelected = glyph.missing
         glyph.markDirty()
         redrawCanvas()
@@ -248,9 +281,10 @@ class GlyphEditor: ChangeListener {
 
 
         val baselineY = (project.settings.size - project.settings.baseline)*pixelSize
+        val metrics = referenceFont.createGlyphVector(g.fontRenderContext, glyph.character).getGlyphMetrics(0)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
         g.font = referenceFont
-        g.drawString(glyph.character, referencePos.x, referencePos.y + baselineY)
+        g.drawString(glyph.character, referencePos.x - metrics.lsb.toInt(), referencePos.y + baselineY)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_DEFAULT)
 
         gc.clearRect(0.0, 0.0, canvas.width, canvas.height)
@@ -296,9 +330,10 @@ class GlyphEditor: ChangeListener {
         val lsb = metrics.lsb.toInt()
         val rsb = metrics.rsb.toInt()
 
-        g.translate(0, -baselineY)
+        g.translate(-lsb, -baselineY)
 
         val advance = metrics.advance.toInt()
+        g.drawLine(0, 0, 0, glyphSize)
         g.drawLine(advance, 0, advance, glyphSize)
 
         g.stroke = BasicStroke(1f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10f, floatArrayOf(pixelSize/2f, pixelSize/2f), pixelSize/4f)
@@ -326,7 +361,7 @@ class GlyphEditor: ChangeListener {
 
         g.color = Color.GREEN
         g.strokeWidth = 2f
-        g.drawLine(glyph.leftHang*pixelSize, 0, (glyph.leftHang + glyph.advance)*pixelSize, 0)
+        g.drawLine(-glyph.leftBearing*pixelSize, 0, (glyph.advance - glyph.leftBearing)*pixelSize, 0)
         g.strokeWidth = 1f
 
         g.translate(0, -baselineY)

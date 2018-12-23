@@ -26,7 +26,7 @@ class Typesetter(val project: Unifont) {
                 cursor = Pos(0, cursor.y + project.settings.size + 1)
             }
             val glyphPos = Pos(
-                cursor.x - glyph.leftHang,
+                cursor.x + glyph.leftBearing,
                 cursor.y - (project.settings.size - project.settings.baseline)
             )
             val placed = PlacedGlyph(glyph, glyphPos, i)
