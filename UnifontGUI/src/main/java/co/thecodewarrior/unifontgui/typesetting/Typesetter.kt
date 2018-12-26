@@ -8,7 +8,7 @@ import kotlin.streams.asSequence
 
 class Typesetter(val project: Unifont) {
 
-    fun typeset(text: String): List<TextRun> {
+    fun typeset(text: String, options: TypesettingOptions = TypesettingOptions()): List<TextRun> {
         var run = TextRun()
         val runs = mutableListOf<TextRun>()
 
@@ -26,7 +26,7 @@ class Typesetter(val project: Unifont) {
                 run = TextRun()
                 cursor = Pos(0, cursor.y + project.settings.size + 1)
             }
-            if(lastGlyph != null) {
+            if(lastGlyph != null && options.applyKerning) {
                 cursor = Pos(cursor.x + project.kerning(lastGlyph, glyph), cursor.y)
             }
             val glyphPos = Pos(
@@ -42,6 +42,10 @@ class Typesetter(val project: Unifont) {
         return runs
     }
 }
+
+data class TypesettingOptions(
+        var applyKerning: Boolean = true
+)
 
 class TextRun {
     val glyphs = mutableListOf<PlacedGlyph>()

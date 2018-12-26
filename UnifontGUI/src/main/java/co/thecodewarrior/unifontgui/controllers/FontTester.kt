@@ -3,6 +3,7 @@ package co.thecodewarrior.unifontgui.controllers
 import co.thecodewarrior.unifontgui.ChangeListener
 import co.thecodewarrior.unifontgui.typesetting.TextRun
 import co.thecodewarrior.unifontgui.typesetting.Typesetter
+import co.thecodewarrior.unifontgui.typesetting.TypesettingOptions
 import co.thecodewarrior.unifontgui.utils.CanvasWrapper
 import co.thecodewarrior.unifontgui.utils.loadIdentity
 import co.thecodewarrior.unifontgui.utils.strokeWidth
@@ -10,6 +11,7 @@ import co.thecodewarrior.unifontlib.Unifont
 import co.thecodewarrior.unifontlib.utils.Color
 import javafx.fxml.FXML
 import javafx.scene.canvas.Canvas
+import javafx.scene.control.CheckBox
 import javafx.scene.control.Slider
 import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane
@@ -21,6 +23,7 @@ import kotlin.math.roundToInt
 class FontTester: ChangeListener {
     lateinit var project: Unifont
     lateinit var typesetter: Typesetter
+    private val typesetOptions = TypesettingOptions()
     lateinit var canvas: CanvasWrapper
     lateinit var stage: Stage
 
@@ -38,6 +41,8 @@ class FontTester: ChangeListener {
     lateinit var textArea: TextArea
     @FXML
     lateinit var scaleSlider: Slider
+    @FXML
+    lateinit var kerningCheckbox: CheckBox
 
     @FXML
     fun initialize() {
@@ -71,6 +76,10 @@ class FontTester: ChangeListener {
                 redraw()
             }
         }
+        kerningCheckbox.selectedProperty().addListener { _, _, value ->
+            typesetOptions.applyKerning = value
+            reflow()
+        }
     }
 
     fun setup(project: Unifont, stage: Stage) {
@@ -103,7 +112,7 @@ class FontTester: ChangeListener {
 
     private fun reflow() {
         unlistenAll()
-        runs = typesetter.typeset(textArea.text)
+        runs = typesetter.typeset(textArea.text, typesetOptions)
         listenAll()
         redraw()
     }
@@ -114,12 +123,17 @@ class FontTester: ChangeListener {
 
     private fun redraw() {
         val selection = textArea.selection.start until textArea.selection.end
+        val colors = listOf(
+                Color("#7fe6194B"),
+                Color("#7ff58231"),
+                Color("#7fffe119")
+        )
         canvas.redraw {
             runs.forEach { run ->
                 run.glyphs.forEach { glyph ->
                     g.loadIdentity()
                     g.scale(scale, scale)
-                    g.translate(project.settings.size + glyph.pos.x, project.settings.size + glyph.pos.y)
+                    g.translate(glyph.pos.x, project.settings.size + glyph.pos.y)
 
                     if(glyph.index in selection) {
                         g.scale(1 / scale, 1 / scale)
@@ -136,13 +150,5 @@ class FontTester: ChangeListener {
                 }
             }
         }
-    }
-
-    companion object {
-        private val colors = listOf(
-            Color("#e6194B"),
-            Color("#f58231"),
-            Color("#ffe119")
-        )
     }
 }

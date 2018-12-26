@@ -4,10 +4,14 @@ import co.thecodewarrior.unifontgui.ChangeListener
 import co.thecodewarrior.unifontgui.Changes
 import co.thecodewarrior.unifontgui.Constants
 import co.thecodewarrior.unifontgui.sizeHeightTo
+import co.thecodewarrior.unifontgui.typesetting.TextRun
+import co.thecodewarrior.unifontgui.typesetting.Typesetter
+import co.thecodewarrior.unifontgui.typesetting.TypesettingOptions
 import co.thecodewarrior.unifontgui.utils.*
 import co.thecodewarrior.unifontlib.EditorGuide
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.Unifont
+import co.thecodewarrior.unifontlib.utils.Color
 import co.thecodewarrior.unifontlib.utils.Pos
 import javafx.embed.swing.SwingFXUtils
 import javafx.fxml.FXML
@@ -21,6 +25,8 @@ import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import javafx.scene.control.Slider
+import javafx.scene.control.TextField
+import javafx.scene.layout.Pane
 import javafx.scene.layout.VBox
 import javafx.scene.text.TextAlignment
 import javafx.stage.Stage
@@ -40,6 +46,8 @@ class GlyphEditor: ChangeListener {
     lateinit var stage: Stage
     lateinit var project: Unifont
     lateinit var glyph: Glyph
+    lateinit var typesetter: Typesetter
+    private val typesetOptions = TypesettingOptions()
     private val horizontalGuides = mutableListOf<EditorGuide>()
     private val verticalGuides = mutableListOf<EditorGuide>()
 
@@ -47,6 +55,10 @@ class GlyphEditor: ChangeListener {
     lateinit var canvas: Canvas
     @FXML
     lateinit var metrics: VBox
+    @FXML
+    lateinit var previewField: TextField
+    @FXML
+    lateinit var previewScaleSlider: Slider
 
     private val gc: GraphicsContext
         get() = canvas.graphicsContext2D
@@ -62,6 +74,7 @@ class GlyphEditor: ChangeListener {
     lateinit var glyphPos: Pos
     lateinit var referencePos: Pos
     var referenceFont: Font = Constants.notoSans
+    var previewScale: Double = 1.0
 
     lateinit var zoomMetric: Slider
     lateinit var rightBearingMetric: Slider
@@ -71,13 +84,26 @@ class GlyphEditor: ChangeListener {
 
     @FXML
     fun initialize() {
-
+        previewField.textProperty().addListener { _, _, _ ->
+            redrawCanvas()
+        }
+        var lastValue = previewScale.toInt()
+        previewScaleSlider.valueProperty().addListener { _, _, value ->
+            val intValue = value.toDouble().roundToInt()
+            previewScaleSlider.value = intValue.toDouble()
+            if(intValue != lastValue) {
+                lastValue = intValue
+                previewScale = intValue.toDouble()
+                redrawCanvas()
+            }
+        }
     }
 
     fun setup(stage: Stage, project: Unifont, glyph: Glyph) {
         this.stage = stage
         this.project = project
         this.pixelSize = 256/project.settings.size
+        this.typesetter = Typesetter(project)
         this.horizontalGuides.addAll(project.settings.horizontalGuides)
         this.verticalGuides.addAll(project.settings.verticalGuides)
 
@@ -178,7 +204,7 @@ class GlyphEditor: ChangeListener {
         }
         this.glyph = glyph
         this.listenTo(glyph)
-        this.stage.title = "Edit U+%04X (${glyph.character})".format(glyph.codepoint)
+        this.stage.title = "Edit ${glyph.character} (U+%04X) ${glyph.name}".format(glyph.codepoint)
 
         rightBearingMetric.value = glyph.rightBearing.toDouble()
         leftBearingMetric.value = glyph.leftBearing.toDouble()
@@ -187,14 +213,15 @@ class GlyphEditor: ChangeListener {
         if(bounds.width == 0 && bounds.height == 0) {
             if(rightBearingMetric.value == 0.0)
                 rightBearingMetric.value = project.settings.defaultBearing.toDouble()
-            if(rightBearingMetric.value == 0.0)
-                rightBearingMetric.value = project.settings.defaultBearing.toDouble()
+            if(leftBearingMetric.value == 0.0)
+                leftBearingMetric.value = project.settings.defaultBearing.toDouble()
         }
         kernableMetric.isSelected = glyph.noAutoKern
         zoom(pixelSize)
     }
 
-    fun createSlider(name: String, min: Int, max: Int, initialValue: Int, change: (Int) -> Unit): Slider {
+    fun createSlider(name: String, min: Int, max: Int, initialValue: Int, parent: Pane = metrics,
+                     change: (Int) -> Unit): Slider {
         val label = Label(name)
         label.textAlignment = TextAlignment.CENTER
         label.prefWidth = 200.0
@@ -213,8 +240,8 @@ class GlyphEditor: ChangeListener {
             }
         }
 
-        metrics.children.add(label)
-        metrics.children.add(slider)
+        parent.children.add(label)
+        parent.children.add(slider)
         return slider
     }
 
@@ -287,6 +314,9 @@ class GlyphEditor: ChangeListener {
         drawGlyphGuides()
         g.loadIdentity()
 
+        drawPreview()
+        g.loadIdentity()
+
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF)
         g.translate(glyphPos.x, glyphPos.y)
         g.scale(scale, scale)
@@ -296,6 +326,7 @@ class GlyphEditor: ChangeListener {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_DEFAULT)
 
 
+        g.color = Color.BLACK
         val baselineY = (project.settings.size - project.settings.baseline)*pixelSize
         val metrics = referenceFont.createGlyphVector(g.fontRenderContext, glyph.character).getGlyphMetrics(0)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
@@ -392,15 +423,51 @@ class GlyphEditor: ChangeListener {
         }
     }
 
+    fun drawPreview() {
+        val selection = previewField.selection.start until previewField.selection.end
+        val colors = listOf(
+                Color("#7fe6194B"),
+                Color("#7ff58231"),
+                Color("#7fffe119")
+        )
+        val runs = typesetter.typeset(previewField.text, typesetOptions)
+
+        runs.forEach { run ->
+            run.glyphs.forEach { glyph ->
+                g.loadIdentity()
+                g.scale(previewScale, previewScale)
+                g.translate(project.settings.size + glyph.pos.x, project.settings.size + glyph.pos.y)
+
+                if(glyph.index in selection) {
+                    g.scale(1 / previewScale, 1 / previewScale)
+                    g.strokeWidth = 2f
+                    g.color = colors[glyph.index % colors.size]
+                    g.fillRect(
+                            0, 0,
+                            (glyph.glyph.advance * previewScale).toInt(), (project.settings.size * previewScale).toInt()
+                    )
+                    g.scale(previewScale, previewScale)
+                }
+
+                g.drawImage(glyph.glyph.image, 0, 0, null)
+            }
+        }
+    }
+
     @FXML
     fun canvasMouseDragged(e: MouseEvent) {
         val pos = pixelCoords(Pos(e.x.toInt(), e.y.toInt()))
-        this.lastPos = pos
         val mouseDragType = mouseDragType ?: return
-        if(mouseDragType != glyph[pos.x, pos.y]) {
+        val lastPos = lastPos
+        if(lastPos != null) {
+            lastPos.lineTo(pos).forEach { pixel ->
+                glyph[pixel.x, pixel.y] = mouseDragType
+            }
+        } else {
             glyph[pos.x, pos.y] = mouseDragType
-            Changes.submit(glyph)
         }
+        this.lastPos = pos
+        Changes.submit(glyph)
     }
 
     @FXML
