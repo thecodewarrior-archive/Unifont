@@ -8,6 +8,7 @@ import co.thecodewarrior.unifontgui.utils.*
 import co.thecodewarrior.unifontlib.EditorGuide
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.Unifont
+import co.thecodewarrior.unifontlib.utils.Pos
 import javafx.embed.swing.SwingFXUtils
 import javafx.fxml.FXML
 import javafx.scene.canvas.Canvas
@@ -63,7 +64,7 @@ class GlyphEditor: ChangeListener {
     var referenceFont: Font = Constants.notoSans
 
     lateinit var zoomMetric: Slider
-    lateinit var advanceMetric: Slider
+    lateinit var rightBearingMetric: Slider
     lateinit var leftBearingMetric: Slider
     lateinit var missingMetric: CheckBox
     lateinit var kernableMetric: CheckBox
@@ -140,11 +141,11 @@ class GlyphEditor: ChangeListener {
             Changes.submit(this.glyph)
         }
 
-        advanceMetric = createSlider("Advance", 0, project.settings.size + 1, glyph.advance) {
-            this.glyph.advance = it
+        rightBearingMetric = createSlider("Right bearing", -project.settings.size/2, project.settings.size/2, glyph.rightBearing) {
+            this.glyph.rightBearing = it
             Changes.submit(this.glyph)
         }
-        leftBearingMetric = createSlider("Left bearing", -project.settings.size, project.settings.size, glyph.leftBearing) {
+        leftBearingMetric = createSlider("Left bearing", -project.settings.size/2, project.settings.size/2, glyph.leftBearing) {
             this.glyph.leftBearing = it
             Changes.submit(this.glyph)
         }
@@ -179,9 +180,16 @@ class GlyphEditor: ChangeListener {
         this.listenTo(glyph)
         this.stage.title = "Edit U+%04X (${glyph.character})".format(glyph.codepoint)
 
-        advanceMetric.value = glyph.advance.toDouble()
+        rightBearingMetric.value = glyph.rightBearing.toDouble()
         leftBearingMetric.value = glyph.leftBearing.toDouble()
         missingMetric.isSelected = glyph.missing
+        val bounds = glyph.bounds
+        if(bounds.width == 0 && bounds.height == 0) {
+            if(rightBearingMetric.value == 0.0)
+                rightBearingMetric.value = project.settings.defaultBearing.toDouble()
+            if(rightBearingMetric.value == 0.0)
+                rightBearingMetric.value = project.settings.defaultBearing.toDouble()
+        }
         kernableMetric.isSelected = glyph.noAutoKern
         zoom(pixelSize)
     }
@@ -228,8 +236,8 @@ class GlyphEditor: ChangeListener {
     fun zoom(size: Int, keepCanvasSize: Boolean = false) {
         pixelSize = size
         glyphSize = project.settings.size*pixelSize
-        glyphPos = Pos(2*glyphSize, glyphSize/2)
-        referencePos = Pos(glyphSize/2, glyphSize/2)
+        glyphPos = Pos(2 * glyphSize, glyphSize / 2)
+        referencePos = Pos(glyphSize / 2, glyphSize / 2)
 
         this.referenceFont = referenceFont.sizeHeightTo("X", pixelSize*project.settings.capHeight.toFloat())
         if(!keepCanvasSize) {
@@ -250,8 +258,8 @@ class GlyphEditor: ChangeListener {
 
     override fun changeOccured(target: Any) {
         glyph.missing = false
-        advanceMetric.value = glyph.advance.toDouble()
-        leftBearingMetric.value = glyph.leftBearing.toDouble()
+        glyph.rightBearing = rightBearingMetric.value.toInt()
+        glyph.leftBearing = leftBearingMetric.value.toInt()
         missingMetric.isSelected = glyph.missing
         kernableMetric.isSelected = glyph.noAutoKern
         glyph.markDirty()

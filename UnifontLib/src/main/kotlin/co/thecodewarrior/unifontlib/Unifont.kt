@@ -16,7 +16,6 @@ class Unifont(val path: Path) {
     private val blockHexDir = path.resolve("blocks")
     private val homelessHexFile = path.resolve("homeless.hex")
     private val kerningFile = path.resolve("kerning.hex")
-    private val autoKerningFile = path.resolve("autoKerning.hex")
     private val projectFile = path.resolve("project.pixfont")
 
     val settings: ProjectSettings
@@ -25,7 +24,6 @@ class Unifont(val path: Path) {
     val all: List<HexFile>
         get() = (files + listOf(homeless))
     val kerning: Kerning = Kerning(this, kerningFile)
-    val autoKerning: Kerning = Kerning(this, autoKerningFile)
 
     init {
         settings = klaxon.parse(projectFile.toFile().readText())
@@ -65,17 +63,14 @@ class Unifont(val path: Path) {
         }
     }
 
-    operator fun get(pair: KernPair): Int {
-        return kerning.pairs[pair] ?: autoKerning.pairs[pair] ?: 0
-    }
-
-    operator fun set(pair: KernPair, kern: Int?) {
-        kerning.markDirty()
-        if(kern == null) {
-            kerning.pairs.remove(pair)
-        } else {
-            kerning.pairs[pair] = kern
-        }
+    fun kerning(left: Glyph, right: Glyph): Int {
+        kerning.pairs[KernPair.Glyphs(left.codepoint, right.codepoint)]?.also { return it }
+        val leftClass = left.rightClass
+        val rightClass = right.leftClass
+        if(leftClass != null && rightClass != null)
+            kerning.pairs[KernPair.Classes(leftClass, rightClass)]?.also { return it }
+        kerning.pairs[KernPair.Profiles(left.rightProfile, right.leftProfile)]?.also { return it }
+        return 0
     }
 
     fun clear() {
@@ -100,7 +95,6 @@ class Unifont(val path: Path) {
         files.filter { it.isDirty }.forEach { it.save() }
         if(homeless.isDirty) homeless.save(noheader = true)
         if(kerning.isDirty) kerning.save()
-        if(autoKerning.isDirty) autoKerning.save()
     }
 
     fun redistributeGlyphs() {

@@ -12,13 +12,23 @@ class Kerning(val project: Unifont, val path: Path) {
     var loaded = false
         private set
 
-    private val _pairs = TreeMap<KernPair, Int>()
-    val pairs: TreeMap<KernPair, Int>
+    private val _profiles = mutableListOf<KernProfile>()
+    val profiles: MutableList<KernProfile>
+        get() {
+            if(!loaded) load()
+            return _profiles
+        }
+
+    private val _pairs = mutableMapOf<KernPair, Int>()
+    val pairs: MutableMap<KernPair, Int>
         get() {
             if(!loaded) load()
             return _pairs
         }
-    private val lineRegex = """([0-9a-fA-F]+)-([0-9a-fA-F]+): (-?[0-9]+)""".toRegex()
+
+    private val glyphsRegex = """([0-9a-fA-F]+)-([0-9a-fA-F]+): (-?[0-9]+)""".toRegex()
+    private val classRegex = """([A-Za-z_]+)-([A-Za-z_]+): (-?[0-9]+)""".toRegex()
+    private val profileRegex = """([0-9]+)-([0-9]+): (-?[0-9]+)""".toRegex()
 
     fun markDirty() {
         isDirty = true
@@ -28,12 +38,32 @@ class Kerning(val project: Unifont, val path: Path) {
         try {
             loaded = true
             if(!Files.exists(path)) return
-            for(it in Files.lines(path)) {
+            lines@ for(it in Files.lines(path)) {
+                if(it.isBlank()) continue
                 val line = it.trim()
-                if(line.isEmpty()) continue
-                val match = lineRegex.matchEntire(line) ?: continue
-                val (left, right, kern) = match.destructured
-                pairs[KernPair(left.toInt(16), right.toInt(16))] = kern.toInt()
+
+                val match: MatchResult?
+                val pair: KernPair
+                when(line[0]) {
+                    'G' -> {
+                        match = glyphsRegex.matchEntire(line.drop(2)) ?: continue@lines
+                        val (left, right) = match.destructured
+                        pair = KernPair.Glyphs(left.toInt(16), right.toInt(16))
+                    }
+                    'C' -> {
+                        match = classRegex.matchEntire(line.drop(2)) ?: continue@lines
+                        val (left, right) = match.destructured
+                        pair = KernPair.Classes(left, right)
+                    }
+                    'P' -> {
+                        match = profileRegex.matchEntire(line.drop(2)) ?: continue@lines
+                        val (left, right) = match.destructured
+                        pair = KernPair.Profiles(left.toInt(), right.toInt())
+                    }
+                    else -> continue@lines
+                }
+                val (_, _, kern) = match.destructured
+                pairs[pair] = kern.toInt()
             }
         } catch (e: Exception) {
             throw HexException("Error loading kerning from $path", e)
@@ -43,8 +73,12 @@ class Kerning(val project: Unifont, val path: Path) {
     fun save() {
         try {
             OutputStreamWriter(Files.newOutputStream(path)).use { output ->
-                pairs.forEach { pair, kern ->
-                    output.write("%04X-%04X: %d\n".format(pair.left, pair.right, kern))
+                pairs.entries.sortedBy { it.value }.forEach { (pair, kern) ->
+                    when(pair) {
+                        is KernPair.Glyphs -> output.write("G:%04X-%04X: %d\n".format(pair.left, pair.right, kern))
+                        is KernPair.Classes -> output.write("C:%s-%s: %d\n".format(pair.left, pair.right, kern))
+                        is KernPair.Profiles -> output.write("P:%d-%d: %d\n".format(pair.left, pair.right, kern))
+                    }
                 }
             }
             this.isDirty = false
@@ -54,11 +88,50 @@ class Kerning(val project: Unifont, val path: Path) {
     }
 }
 
-data class KernPair(val left: Int, val right: Int): Comparable<KernPair> {
-    override fun compareTo(other: KernPair): Int {
-        var result = left - other.left
-        if(result == 0) result = right - other.right
-        return result
+sealed class KernPair: Comparable<KernPair> {
+    data class Glyphs(val left: Int, val right: Int): KernPair() {
+        override fun compareTo(other: KernPair): Int {
+            if(other !is Glyphs) return -1
+            var result = other.left - left
+            if (result == 0) result = other.right - right
+            return result
+        }
+    }
+
+    data class Classes(val left: String, val right: String): KernPair() {
+        override fun compareTo(other: KernPair): Int {
+            when(other) {
+                is Glyphs -> return 1
+                is Profiles -> return -1
+                is Classes -> {
+                    var result = left.compareTo(other.left)
+                    if (result == 0) result = right.compareTo(other.right)
+                    return result
+                }
+            }
+        }
+    }
+
+    class Profiles(val left: Int, val right: Int): KernPair() {
+        override fun compareTo(other: KernPair): Int {
+            if(other !is Profiles) return 1
+            var result = other.left - left
+            if (result == 0) result = other.right - right
+            return result
+        }
+
+        override fun hashCode(): Int {
+            return left.hashCode() xor right.hashCode()
+        }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Profiles
+
+            return (left == other.left && right == other.right) || (left == other.right || right == other.left)
+        }
     }
 }
 
@@ -66,42 +139,57 @@ fun Unifont.autoKern(targetSpacing: Int, gapSize: Int) {
     val glyphs = this.files.asSequence()
         .flatMap { it.glyphs.values.asSequence() }
         .filter { !it.missing && !it.noAutoKern }
-        .map { GlyphProfile(it, gapSize) }
-        .toMutableList()
+        .map {
+            it.leftProfile = -1
+            it.rightProfile = -1
+            it to GlyphProfile(it, gapSize)
+        }.toList()
 
-    val pairs = glyphs.asSequence()
-        .flatMap { glyph ->
-            glyphs.asSequence()
-                .filter { it !== glyph }
-                .map { GlyphPair(glyph, it) }
+    var i = 0
+    val profileMap = mutableMapOf<KernProfile, Int>()
+    glyphs.asSequence()
+        .forEach { (glyph, profile) ->
+            val leftIndex = profileMap.getOrPut(profile.leftProfile) { i++ }
+            val rightIndex = profileMap.getOrPut(profile.rightProfile) { i++ }
+            profile.leftProfile.index = leftIndex
+            profile.rightProfile.index = rightIndex
+            glyph.leftProfile = leftIndex
+            glyph.rightProfile = rightIndex
+            glyph.markDirty()
         }
 
-    autoKerning.pairs.clear()
+    val profiles = profileMap.entries.sortedBy { it.value }.map { it.key }
+
+    val pairs = profiles.asSequence()
+            .flatMap { leftProfile ->
+                profiles.asSequence()
+                        .drop(leftProfile.index)
+                        .map { leftProfile to it }
+            }
+
+    kerning.profiles.clear()
+    kerning.profiles.addAll(profiles)
+    kerning.pairs.keys.filter { it is KernPair.Profiles }.forEach {
+        kerning.pairs.remove(it)
+    }
+
     for(pair in pairs) {
-        val kernPair = KernPair(pair.left.glyph.codepoint, pair.right.glyph.codepoint)
-        val minGap = pair.gaps.min()
+        val kernPair = KernPair.Profiles(pair.first.index, pair.second.index)
+
+        val gaps = pair.first + pair.second
+        val minGap = gaps.minDistance
         if(minGap != null && minGap != Int.MAX_VALUE) {
-            val kerning = targetSpacing - minGap
-            if(kerning != 0) autoKerning.pairs[kernPair] = kerning
+            val kernAmount = targetSpacing - minGap
+            if(kernAmount != 0) kerning.pairs[kernPair] = kernAmount
             continue
         }
-        autoKerning.pairs.remove(kernPair)
     }
-    autoKerning.markDirty()
+    kerning.markDirty()
 }
 
-class GlyphPair(val left: GlyphProfile, val right: GlyphProfile) {
-    val gaps = left.rightGaps.zip(right.leftGaps).map {
-        if(it.first == Int.MAX_VALUE || it.second == Int.MAX_VALUE)
-            Int.MAX_VALUE
-        else
-            it.first + it.second
-    }
-}
-
-class GlyphProfile(val glyph: Glyph, gapSize: Int) {
-    val leftGaps: List<Int>
-    val rightGaps: List<Int>
+class GlyphProfile(glyph: Glyph, gapSize: Int) {
+    val leftProfile: KernProfile
+    val rightProfile: KernProfile
 
     init {
         val leftGaps = MutableList(glyph.image.height) { Int.MAX_VALUE }
@@ -129,7 +217,21 @@ class GlyphProfile(val glyph: Glyph, gapSize: Int) {
             }
         }
 
-        this.leftGaps = leftGaps
-        this.rightGaps = rightGaps
+        val leftLimit = leftGaps.min()!! + 2
+        this.leftProfile = KernProfile(leftGaps.map { min(it, leftLimit) })
+
+        val rightLimit = rightGaps.min()!! + 2
+        this.rightProfile = KernProfile(rightGaps.map { min(it, rightLimit) })
     }
+}
+
+data class KernProfile(val gaps: List<Int>) {
+    var index: Int = -1
+    operator fun plus(other: KernProfile): KernGaps {
+        return KernGaps(gaps.zip(other.gaps).map { (a, b) -> a + b })
+    }
+}
+
+data class KernGaps(val gaps: List<Int>) {
+    val minDistance = gaps.min()
 }

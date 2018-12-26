@@ -1,4 +1,4 @@
-package co.thecodewarrior.unifontgui.utils
+package co.thecodewarrior.unifontlib.utils
 
 data class Pos(val x: Int, val y: Int) {
     operator fun plus(other: Pos): Pos {
@@ -14,19 +14,19 @@ data class Pos(val x: Int, val y: Int) {
     }
 
     operator fun times(other: Pos): Pos {
-        return Pos(x*other.x, y*other.y)
+        return Pos(x * other.x, y * other.y)
     }
 
     operator fun times(other: Number): Pos {
-        return Pos((x*other.toDouble()).toInt(), (y*other.toDouble()).toInt())
+        return Pos((x * other.toDouble()).toInt(), (y * other.toDouble()).toInt())
     }
 
     operator fun div(other: Pos): Pos {
-        return Pos(x/other.x, y/other.y)
+        return Pos(x / other.x, y / other.y)
     }
 
     operator fun div(other: Number): Pos {
-        return Pos((x/other.toDouble()).toInt(), (y/other.toDouble()).toInt())
+        return Pos((x / other.toDouble()).toInt(), (y / other.toDouble()).toInt())
     }
 
     fun lineTo(other: Pos): List<Pos> {

@@ -88,6 +88,33 @@ fun BufferedImage.isColor(startX: Int, startY: Int, width: Int, height: Int, col
     return array.all { it == color.rgb }
 }
 
+fun BufferedImage.pixels(): Sequence<Pixel> {
+    return PixelSequence(this)
+}
+
+data class Pixel(val x: Int, val y: Int, val color: Color)
+
+class PixelSequence(val image: BufferedImage): Sequence<Pixel> {
+    override fun iterator(): Iterator<Pixel> {
+        return PixelIterator()
+    }
+
+    private inner class PixelIterator: Iterator<Pixel> {
+        private var i = 0
+
+        override fun hasNext(): Boolean {
+            return i < image.width * image.height
+        }
+
+        override fun next(): Pixel {
+            val x = i % image.width
+            val y = i / image.width
+            i++
+            return Pixel(x, y, Color(image.getRGB(x, y)))
+        }
+    }
+}
+
 //================================================ Comparable Utilities ================================================
 
 /**

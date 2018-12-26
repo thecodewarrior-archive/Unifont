@@ -2,46 +2,55 @@ package co.thecodewarrior.unifontlib
 
 import co.thecodewarrior.unifontlib.utils.*
 import java.awt.Color
+import java.awt.Rectangle
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferByte
+import kotlin.reflect.KProperty
 
 class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage = createGlyphImage(project.settings.size, project.settings.size),
-    var missing: Boolean = false, var attributes: MutableMap<GlyphAttribute, String> = mutableMapOf(),
-    var tags: MutableMap<GlyphTag, Int> = mutableMapOf()) {
+    var missing: Boolean = false,
+    private var attributes: MutableMap<String, String> = mutableMapOf(),
+    private var tags: MutableSet<String> = mutableSetOf()
+) {
 
     val character: String = String(Character.toChars(codepoint))
 
-    val width: Int
-        get() = image.width
-    val height: Int
-        get() = image.height
-
-    var advance: Int
-        get() = attributes[GlyphAttribute.ADVANCE]?.toIntOrNull() ?: 0
-        set(value) { attributes[GlyphAttribute.ADVANCE] = value.toString() }
-    var leftBearing: Int
-        get() = attributes[GlyphAttribute.LEFT_BEARING]?.toIntOrNull() ?: 0
-        set(value) {
-            if(value == 0)
-                attributes.remove(GlyphAttribute.LEFT_BEARING)
-            else
-                attributes[GlyphAttribute.LEFT_BEARING] = value.toString()
-        }
-    var noAutoKern: Boolean
-        get() = attributes[GlyphAttribute.NO_AUTO_KERN] != null
-        set(value) {
-            if(value)
-               attributes[GlyphAttribute.NO_AUTO_KERN] = "yes"
-            else
-               attributes.remove(GlyphAttribute.NO_AUTO_KERN)
+    val bounds: Rect
+        get() {
+            var minX = image.width
+            var minY = image.height
+            var maxX = 0
+            var maxY = 0
+            var empty = true
+            image.pixels().filter { it.color == onColor }.forEach {
+                empty = false
+                minX = min(minX, it.x)
+                minY = min(minY, it.y)
+                maxX = max(maxX, it.x)
+                maxY = max(maxY, it.y)
+            }
+            if(empty) return Rect(0, 0, 0, 0)
+            return Rect(minX, minY, maxX - minX + 1, maxY - minY + 1)
         }
 
-    var name: String
-        get() = attributes[GlyphAttribute.NAME] ?: "?"
-        set(value) { attributes[GlyphAttribute.NAME] = value }
+    var advance: Int by GlyphAttributeInt(this, "advance", 0)
+    var leftBearing: Int by GlyphAttributeInt(this, "left_bearing", 0)
+    var noAutoKern: Boolean by Tag("no_auto_kern")
 
+    var leftProfile: Int by GlyphAttributeInt(this, "left_profile", -1)
+    var rightProfile: Int by GlyphAttributeInt(this, "right_profile", -1)
+
+    var leftClass: String? by GlyphAttributeString(this, "left_class", null)
+    var rightClass: String? by GlyphAttributeString(this, "right_class", null)
+    var name: String by GlyphAttributeString(this, "name", "?")
+
+    var rightBearing: Int
+        get() = advance - leftBearing - bounds.maxX
+        set(value) {
+            advance = value + leftBearing + bounds.maxX
+        }
     init {
-        if(width % 4 != 0)
+        if(image.width % 4 != 0)
             throw IllegalArgumentException("Glyph width not a multiple of 4, it cannot be expressed in hex")
     }
 
@@ -60,14 +69,12 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
 
         val attributesString = attributes.map {
             var shouldQuote = "\\s".toRegex().find(it.value) != null
-            shouldQuote = shouldQuote || it.key == GlyphAttribute.NAME
+            shouldQuote = shouldQuote || it.key == "name"
 
             val value = if(shouldQuote) "\"${it.value}\"" else it.value
-            " ${it.key.name}=$value"
+            " ${it.key}=$value"
         }.sorted().joinToString("")
-        val tagsString = tags.map {
-            " ${it.key.name}"
-        }.sorted().joinToString("")
+        val tagsString = tags.sorted().joinToString("")
 
         val missingPrefix = if(missing) MISSING_PREFIX else ""
 
@@ -101,7 +108,10 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
     }
 
     companion object {
-        var colorModel = IndexColorModel(Color(1f, 1f, 1f, 0f), Color.BLACK)
+        val onColor = Color.BLACK
+        val offColor = Color(1f, 1f, 1f, 0f)
+        val colorModel = IndexColorModel(offColor, onColor)
+
         val MISSING_PREFIX = "; Missing >"
 
         val attrRegex = """(\w+)(?:\s*=\s*(?:([^"]\S*|".+?[^\\]")))?""".toRegex()
@@ -122,8 +132,8 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
             val glyphHex = legacyGlyph.after(':') ?: "0".repeat(8*8/4)
             if(glyphHex.isEmpty()) "0".repeat(8*8/4)
 
-            val attributes = mutableMapOf<GlyphAttribute, String>()
-            val flags = mutableMapOf<GlyphTag, Int>()
+            val attributes = mutableMapOf<String, String>()
+            val flags = mutableSetOf<String>()
 
             if(metaString != null) {
                 attrRegex.findAll(metaString).forEach { match ->
@@ -133,11 +143,9 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
                         if(value.startsWith("\"") && value.endsWith("\"")) {
                             value = value.substring(1, value.length-1)
                         }
-                        val attribute = GlyphAttribute[name]
-                        attributes[attribute] = value
+                        attributes[name] = value
                     } else {
-                        val tag = GlyphTag[name]
-                        flags[tag] = flags.getOrDefault(tag, 0)
+                        flags.add(name)
                     }
                 }
             }
@@ -152,37 +160,85 @@ class Glyph(val project: Unifont, val codepoint: Int, var image: BufferedImage =
             val bytes = glyphHex.chunked(2).map { it.toInt(16).toByte() }.toTypedArray().toByteArray()
             System.arraycopy(bytes, 0, data, 0, bytes.size)
 
-            if(GlyphAttribute.ADVANCE !in glyph.attributes) {
-                glyph.advance = glyph.defaultAdvance()
-            }
             return glyph
         }
 
         fun createGlyphImage(width: Int, height: Int) =
             BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY, colorModel)
     }
-}
 
-class GlyphAttribute private constructor(val name: String) {
-    companion object {
-        private val map = mutableMapOf<String, GlyphAttribute>()
-        operator fun get(name: String) = map.getOrPut(name) { GlyphAttribute(name) }
+    abstract class GlyphAttribute<T>(val glyph: Glyph, val name: String, val defaultValue: T) {
+        private var cached: T = defaultValue
 
-        val BLANK_WIDTH = GlyphAttribute["blank_width"]
-        val COMBINING = GlyphAttribute["combining"]
-        val WIDTH_OVERRIDE = GlyphAttribute["width_override"]
-        val NAME = GlyphAttribute["name"]
-        val ADVANCE = GlyphAttribute["advance"]
-        val LEFT_BEARING = GlyphAttribute["left_bearing"]
-        val NO_AUTO_KERN = GlyphAttribute["no_auto_kern"]
+        init {
+            glyph.attributes[name]?.also {
+                cached = parse(it) ?: defaultValue
+            }
+        }
+
+        abstract fun parse(value: String): T?
+        abstract fun save(value: T): String?
+
+        operator fun getValue(thisRef: Any?, property: KProperty<*>): T = cached
+
+        operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+            cached = value
+            val saved = save(value)
+            if(saved == null) {
+                glyph.attributes.remove(name)
+            } else {
+                glyph.attributes[name] = saved
+            }
+        }
+
+//        val BLANK_WIDTH = GlyphAttribute["blank_width"]
+//        val WIDTH_OVERRIDE = GlyphAttribute["width_override"]
+//        val NAME = GlyphAttribute["name"]
+//        val ADVANCE = GlyphAttribute["advance"]
+//        val LEFT_BEARING = GlyphAttribute["left_bearing"]
+//        val NO_AUTO_KERN = GlyphAttribute["no_auto_kern"]
+//        val LEFT_CLASS = GlyphAttribute["left_class"]
+//        val RIGHT_CLASS = GlyphAttribute["right_class"]
+//        val LEFT_PROFILE = GlyphAttribute["left_profile"]
+//        val RIGHT_PROFILE = GlyphAttribute["right_profile"]
+    }
+
+    class GlyphAttributeString<S: String?>(glyph: Glyph, name: String, defaultValue: S): GlyphAttribute<S>(glyph, name, defaultValue) {
+        @Suppress("UNCHECKED_CAST")
+        override fun parse(value: String): S {
+            return value as S
+        }
+
+        override fun save(value: S): String? {
+            return value
+        }
+    }
+
+    class GlyphAttributeInt(glyph: Glyph, name: String, defaultValue: Int): GlyphAttribute<Int>(glyph, name, defaultValue) {
+        @Suppress("UNCHECKED_CAST")
+        override fun parse(value: String): Int? {
+            return value.toIntOrNull()
+        }
+
+        override fun save(value: Int): String? {
+            return value.toString()
+        }
+    }
+
+    class Tag(val name: String) {
+        operator fun getValue(thisRef: Any?, property: KProperty<*>): Boolean {
+            thisRef as Glyph
+            return name in thisRef.tags
+        }
+
+        operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Boolean) {
+            thisRef as Glyph
+            if(value) {
+                thisRef.tags.add(name)
+            } else {
+                thisRef.tags.remove(name)
+            }
+        }
     }
 }
-class GlyphTag private constructor(val name: String) {
-    companion object {
-        private val map = mutableMapOf<String, GlyphTag>()
 
-        val NONPRINTING = GlyphTag["np"]
-        val IGNORE_EMPTY = GlyphTag["ignore_empty"]
-        operator fun get(name: String) = map.getOrPut(name) { GlyphTag(name) }
-    }
-}

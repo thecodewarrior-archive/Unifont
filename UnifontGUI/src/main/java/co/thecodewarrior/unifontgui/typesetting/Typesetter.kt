@@ -1,10 +1,9 @@
 package co.thecodewarrior.unifontgui.typesetting
 
-import co.thecodewarrior.unifontgui.utils.Pos
+import co.thecodewarrior.unifontlib.utils.Pos
 import co.thecodewarrior.unifontlib.Glyph
 import co.thecodewarrior.unifontlib.KernPair
 import co.thecodewarrior.unifontlib.Unifont
-import co.thecodewarrior.unifontlib.utils.Color
 import kotlin.streams.asSequence
 
 class Typesetter(val project: Unifont) {
@@ -20,14 +19,16 @@ class Typesetter(val project: Unifont) {
             .toMutableList() as MutableList<Pair<Int, Glyph>>
 
         var cursor = Pos(0, 0)
-        var lastGlyph = -1
+        var lastGlyph: Glyph? = null
         for((i, glyph) in glyphs) {
             if("A${glyph.character}A".lines().size > 1) {
                 runs.add(run)
                 run = TextRun()
                 cursor = Pos(0, cursor.y + project.settings.size + 1)
             }
-            cursor = Pos(cursor.x + project[KernPair(lastGlyph, glyph.codepoint)], cursor.y)
+            if(lastGlyph != null) {
+                cursor = Pos(cursor.x + project.kerning(lastGlyph, glyph), cursor.y)
+            }
             val glyphPos = Pos(
                 cursor.x + glyph.leftBearing,
                 cursor.y - (project.settings.size - project.settings.baseline)
@@ -35,7 +36,7 @@ class Typesetter(val project: Unifont) {
             val placed = PlacedGlyph(glyph, glyphPos, i)
             run.glyphs.add(placed)
             cursor = Pos(cursor.x + glyph.advance, cursor.y)
-            lastGlyph = glyph.codepoint
+            lastGlyph = glyph
         }
         runs.add(run)
         return runs

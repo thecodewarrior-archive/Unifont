@@ -6,7 +6,6 @@ import co.thecodewarrior.unifontgui.sizeHeightTo
 import co.thecodewarrior.unifontgui.utils.openFXML
 import co.thecodewarrior.unifontgui.utils.loadIdentity
 import co.thecodewarrior.unifontlib.Glyph
-import co.thecodewarrior.unifontlib.GlyphAttribute
 import co.thecodewarrior.unifontlib.Unifont
 import co.thecodewarrior.unifontlib.autoKern
 import co.thecodewarrior.unifontlib.ucd.UnicodeCharacterDatabase
@@ -162,7 +161,7 @@ class Main {
             codepoints.forEach { codepoint ->
                 file.glyphs.getOrPut(codepoint.codepoint) {
                     Glyph(project, codepoint.codepoint, missing = true)
-                }.attributes[GlyphAttribute.NAME] = codepoint.name
+                }.name = codepoint.name
             }
         }
         ucdPath.toFile().deleteRecursively()
